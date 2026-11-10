@@ -10,7 +10,7 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 2000,
-    rollupOptions: { input: { studio: "index.html", flow: "flow.html" } },
+    rollupOptions: { input: { studio: "index.html", flow: "flow.html", pipeline: "pipeline.html" } },
   },
   server: {
     proxy: {

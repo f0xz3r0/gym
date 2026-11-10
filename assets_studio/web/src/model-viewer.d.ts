@@ -13,6 +13,10 @@ declare module "preact" {
         exposure?: string;
         loading?: "auto" | "lazy" | "eager";
         "interaction-prompt"?: "auto" | "none";
+        autoplay?: boolean;
+        "animation-name"?: string;
+        "environment-image"?: string;
+        "tone-mapping"?: string;
       };
     }
   }
