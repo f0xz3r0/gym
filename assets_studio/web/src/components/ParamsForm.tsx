@@ -17,9 +17,13 @@ interface Property {
   exclusiveMaximum?: number;
   "x-primary"?: boolean;
   "x-labels"?: Record<string, string>;
+  "x-option-labels"?: Record<string, string>;
+  "x-visible-when"?: Record<string, unknown[]>;
 }
 
 export const isPrimary = (prop: Property) => prop["x-primary"] === true;
+const isVisible = (prop: Property, values: Params) =>
+  Object.entries(prop["x-visible-when"] ?? {}).every(([field, options]) => options.includes(values[field]));
 
 export function properties(schema: Schema): [string, Property][] {
   const props = schema.properties;
@@ -75,10 +79,11 @@ export type Texts = Record<string, string>;
 export function invalidParams(
   schema: Schema,
   texts: Texts,
+  values: Params = {},
 ): [string, Property][] {
   return properties(schema).filter(([name, prop]) => {
     const text = texts[name];
-    return text !== undefined && parseNumber(text, prop) === null;
+    return isVisible(prop, values) && text !== undefined && parseNumber(text, prop) === null;
   });
 }
 
@@ -86,11 +91,13 @@ function NumberField({
   label,
   prop,
   text,
+  help,
   onInput,
 }: {
   label: string;
   prop: Property;
   text: string;
+  help: string | undefined;
   onInput: (text: string) => void;
 }) {
   const valid = parseNumber(text, prop) !== null;
@@ -105,6 +112,7 @@ function NumberField({
         value={text}
         onInput={(event) => onInput(event.currentTarget.value)}
       />
+      {help && <span class="hint">{help}</span>}
       {!valid && (
         <span class="hint error">
           {t("params.needed", { range: range(prop) })}
@@ -133,6 +141,7 @@ function Field({
     prop["x-labels"],
     prop.description ?? prop.title ?? name,
   );
+  const help = prop["x-labels"] && prop.description !== label ? prop.description : undefined;
   if (prop.enum) {
     return (
       <label class="field">
@@ -148,10 +157,13 @@ function Field({
         >
           {prop.enum.map((option) => (
             <option key={String(option)} value={String(option)}>
-              {String(option)}
+              {prop["x-option-labels"]?.[String(option)] ?? String(option)}
             </option>
           ))}
         </select>
+        {prop["x-labels"] && prop.description && prop.description !== label && (
+          <span class="hint">{prop.description}</span>
+        )}
       </label>
     );
   }
@@ -173,6 +185,7 @@ function Field({
         label={label}
         prop={prop}
         text={text ?? (typeof value === "number" ? String(value) : "")}
+        help={help}
         onInput={onText}
       />
     );
@@ -185,6 +198,7 @@ function Field({
         value={typeof value === "string" ? value : ""}
         onInput={(event) => onChange(event.currentTarget.value)}
       />
+      {help && <span class="hint">{help}</span>}
     </label>
   );
 }
@@ -208,7 +222,7 @@ export function ParamsForm({
   return (
     <>
       {properties(schema)
-        .filter(([, prop]) => isPrimary(prop) === primary)
+        .filter(([, prop]) => isPrimary(prop) === primary && isVisible(prop, values))
         .map(([name, prop]) => (
           <Field
             key={name}

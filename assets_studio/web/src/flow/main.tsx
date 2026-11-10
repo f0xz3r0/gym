@@ -78,7 +78,7 @@ function App() {
   const badNumbers = graph.nodes.some((item) => {
     const task = specFor(item, servers);
     return (
-      task && invalidParams(task.params_schema, texts[item.id] ?? {}).length > 0
+      task && item.kind === "task" && invalidParams(task.params_schema, texts[item.id] ?? {}, item.params).length > 0
     );
   });
   const act = (action: () => Promise<unknown>) => {

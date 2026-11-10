@@ -1,5 +1,6 @@
 import { HomePage } from "./pages/HomePage";
 import { FramePage } from "./pages/FramePage";
+import { BlenderBuilderPage } from "./pages/BlenderBuilderPage";
 import { JobsPage } from "./pages/JobsPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SectionPage } from "./pages/SectionPage";
@@ -30,6 +31,8 @@ export function App() {
           <JobsPage />
         ) : current.page === "tool" && current.toolId === "frame" ? (
           <FramePage />
+        ) : current.page === "tool" && current.toolId === "blender-builder" ? (
+          <BlenderBuilderPage />
         ) : section ? (
           <SectionPage key={section.id} section={section} />
         ) : (

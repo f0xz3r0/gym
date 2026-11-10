@@ -10,6 +10,7 @@ import { assetById, mergeJob } from "../state/store";
 import { InputPicker } from "./InputPicker";
 import { invalidParams, isPrimary, ParamsForm, properties } from "./ParamsForm";
 import { t } from "../i18n";
+import { AssetPromptBuilder } from "./AssetPromptBuilder";
 
 const SEED_LIMIT = 2 ** 32;
 const MAX_SEGMENTS = 6;
@@ -33,6 +34,7 @@ export function GenerationForm({
   const target = targetOf(section, draft);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [buildingPrompt, setBuildingPrompt] = useState(false);
 
   if (!target) {
     return <p class="hint">{t("form.unknownTasks")}</p>;
@@ -51,7 +53,7 @@ export function GenerationForm({
     (spec) => spec.required && !inputs[spec.role],
   );
   const missingPrompt = task.prompt === "required" && !draft.prompt.trim();
-  const invalid = invalidParams(task.params_schema, draft.texts);
+  const invalid = invalidParams(task.params_schema, draft.texts, draft.params);
   const primaryInvalid = invalid.some(([, prop]) => isPrimary(prop));
   const advancedInvalid =
     invalid.some(([, prop]) => !isPrimary(prop)) || seed === undefined;
@@ -66,7 +68,7 @@ export function GenerationForm({
   ) => updateDraft(section, { params, texts });
 
   const submit = async () => {
-    if (blocked || sending) return;
+    if (blocked || sending || buildingPrompt) return;
     setSending(true);
     setError(null);
     try {
@@ -129,6 +131,9 @@ export function GenerationForm({
             }}
           />
         </label>
+      )}
+      {server.id === "qwen-image" && task.task === "text-to-image" && (
+        <AssetPromptBuilder key={`${section.id}:${server.id}:${task.task}`} section={section} onBusy={setBuildingPrompt} />
       )}
       {hasPrimary && (
         <div class="fields">
@@ -218,7 +223,7 @@ export function GenerationForm({
       </details>
       <button
         class="button primary"
-        disabled={blocked || sending}
+        disabled={blocked || sending || buildingPrompt}
         onClick={() => void submit()}
       >
         {sending ? t("form.sending") : t("form.send")}

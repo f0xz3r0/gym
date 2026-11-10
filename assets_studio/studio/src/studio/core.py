@@ -1,6 +1,8 @@
 """The studio assembled: storage, services and the dispatcher."""
 
-import fcntl
+import os
+if os.name != "nt":
+    import fcntl
 import logging
 import threading
 import time
@@ -30,10 +32,18 @@ class Studio:
         config.data_dir.mkdir(parents=True, exist_ok=True)
         # One process per data directory: restart recovery (interrupted jobs)
         # would otherwise fail jobs another process is still running.
-        self._lock = (config.data_dir / ".lock").open("w")
+        self._lock = (config.data_dir / ".lock").open("a+b")
         try:
-            fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+            if os.name == "nt":
+                import msvcrt
+                if self._lock.tell() == 0:
+                    self._lock.write(b"0")
+                    self._lock.flush()
+                self._lock.seek(0)
+                msvcrt.locking(self._lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
             self._lock.close()
             raise DataDirectoryBusy(f"another studio is already using {config.data_dir}") from None
         try:

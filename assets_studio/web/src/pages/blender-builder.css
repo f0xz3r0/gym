@@ -1,0 +1,75 @@
+.blender-builder { overflow: auto; min-width: 0; padding: 24px; }
+.builder-page-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; max-width: 1440px; margin: 0 auto 22px; }
+.builder-page-head h1 { font-size: 28px; letter-spacing: -.03em; margin-top: 5px; }
+.builder-page-head p { color: var(--muted); margin: 7px 0 0; max-width: 640px; }
+.builder-local { color: var(--ok); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.builder-format-note { color: var(--muted); font-size: 12px; flex: none; }
+.builder-columns { display: grid; grid-template-columns: minmax(300px, 430px) minmax(0, 1fr); gap: 22px; max-width: 1440px; margin: auto; align-items: start; }
+.builder-left, .builder-right { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.builder-card { min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.builder-card > p { margin: 0; }
+.builder-card h2 { font-size: 17px; }
+.builder-card textarea { min-height: 150px; resize: vertical; }
+.builder-card details > summary { color: var(--muted); cursor: pointer; }
+.builder-options, .builder-reference > .field { padding-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+.builder-model-note { background: var(--sunken); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+.builder-model-note p { margin: 0; }
+.builder-model-note .button { align-self: start; }
+.builder-build { min-height: 42px; justify-content: center; }
+.builder-expectation { line-height: 1.5; }
+.builder-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.builder-result-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.builder-state { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.builder-state.succeeded { color: var(--ok); }
+.builder-state.running, .builder-state.queued { color: var(--wait); }
+.builder-state.failed { color: var(--bad); }
+.builder-progress { display: flex; gap: 10px; align-items: start; padding: 11px 12px; background: var(--sunken); border-radius: 6px; font-size: 12px; }
+.builder-progress .spinner { width: 14px; height: 14px; margin-top: 2px; flex: none; }
+.builder-progress p { margin: 3px 0 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.builder-failure { border: 1px solid var(--bad); background: var(--bad-soft); }
+.builder-failure strong { color: var(--bad-text); }
+.builder-technical-details pre, .builder-description p { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; margin: 10px 0 0; font-size: 12px; }
+.builder-technical-details pre { background: var(--sunken); padding: 12px; border-radius: 6px; }
+.builder-error { color: var(--bad-text); background: var(--bad-soft); border: 1px solid var(--bad); border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.builder-notice { color: var(--ok); }
+.builder-render { display: block; background: var(--viewer); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.builder-render img { display: block; width: 100%; max-height: 640px; object-fit: contain; }
+.builder-preview-tabs, .builder-render-choices { display: flex; gap: 6px; flex-wrap: wrap; }
+.builder-preview-tabs button[aria-pressed="true"], .builder-render-choices button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.builder-model { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--viewer); }
+.builder-model .mesh-preview { height: auto; }
+.builder-model model-viewer { width: 100%; height: clamp(260px, 45vh, 520px); min-height: 260px; flex: none; }
+.builder-downloads { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.builder-card details .builder-downloads { margin-top: 10px; }
+.builder-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.builder-controls span { font-size: 12px; background: var(--sunken); border: 1px solid var(--border); padding: 4px 7px; border-radius: 4px; }
+.builder-control-group { flex-basis: 100%; font-size: 12px; }
+.builder-history { gap: 10px; }
+.builder-history-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 6px; padding: 9px; }
+.builder-history-item.selected { border-color: var(--accent); background: var(--accent-soft); }
+.builder-history-select { flex: 1; min-width: 0; cursor: pointer; text-align: left; background: none; border: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.builder-history-select strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.builder-history-select span { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.builder-empty { min-height: 380px; align-items: center; justify-content: center; text-align: center; color: var(--muted); }
+.builder-empty h2 { color: var(--text); }
+.builder-empty p { max-width: 390px; }
+.builder-empty-icon { font-size: 56px; color: var(--accent); line-height: 1; }
+@media (max-width: 900px) {
+  .blender-builder { padding: 16px; }
+  .builder-page-head { display: block; }
+  .builder-format-note { display: block; margin-top: 10px; }
+  .builder-columns { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .builder-left, .builder-right { display: contents; }
+  .builder-right .builder-result, .builder-right .builder-empty { order: 1; }
+  .builder-history { order: 2; }
+}
+@media (max-width: 450px) {
+  .blender-builder { padding: 12px; }
+  .builder-card { padding: 14px; gap: 13px; }
+  .builder-page-head h1 { font-size: 25px; }
+  .builder-heading-row { align-items: start; flex-direction: column; }
+  .builder-heading-row .button { width: 100%; }
+  .builder-result-actions { width: 100%; }
+  .builder-card textarea { min-height: 130px; }
+  .builder-downloads .button { flex: 1 1 auto; text-align: center; }
+}

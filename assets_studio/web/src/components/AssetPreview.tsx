@@ -70,6 +70,16 @@ function MeshPreview({ asset }: { asset: Asset }) {
     triangles: number;
   } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [bones, setBones] = useState<string[]>([]);
+  const [showBones, setShowBones] = useState(false);
+  const [clips, setClips] = useState<string[]>([]);
+  const [clip, setClip] = useState("");
+  const [playing, setPlaying] = useState(false);
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  type AnimatedViewer = HTMLElement & { availableAnimations: string[]; animationName: string;
+    duration: number; currentTime: number; play: () => void; pause: () => void;
+    updateComplete: Promise<boolean> };
 
   useEffect(() => {
     const element = viewer.current;
@@ -81,6 +91,7 @@ function MeshPreview({ asset }: { asset: Asset }) {
       inspection.current?.dispose();
       inspection.current = null;
       setStats(null);
+      setBones([]); setClips([]); setPlaying(false); setTime(0);
       setFailed(false);
       void import("./meshInspection").then(
         ({ inspectMesh }) => {
@@ -88,6 +99,11 @@ function MeshPreview({ asset }: { asset: Asset }) {
           try {
             inspection.current = inspectMesh(element);
             setStats(inspection.current.stats);
+            setBones(inspection.current.bones);
+            const animation = element as AnimatedViewer;
+            const available = animation.availableAnimations;
+            setClips([...available]); setClip(available[0] ?? "");
+            setDuration(Number.isFinite(animation.duration) ? animation.duration : 0);
           } catch {
             setFailed(true);
           }
@@ -108,6 +124,32 @@ function MeshPreview({ asset }: { asset: Asset }) {
   useEffect(() => {
     inspection.current?.setView(mode, texture);
   }, [mode, texture, stats]);
+  useEffect(() => {
+    inspection.current?.setSkeleton(showBones);
+  }, [showBones, stats]);
+  useEffect(() => {
+    const animation = viewer.current as AnimatedViewer | null;
+    if (!animation || !clip) return;
+    animation.animationName = clip;
+    setPlaying(false); setTime(0);
+    let current = true;
+    // model-viewer selects its clip during the next Lit update. Reading the
+    // duration before that update gives zero and breaks scrubbing until Play.
+    void animation.updateComplete.then(() => {
+      if (!current) return;
+      animation.pause(); animation.currentTime = 0;
+      setDuration(Number.isFinite(animation.duration) ? animation.duration : 0);
+    });
+    return () => { current = false; };
+  }, [clip, asset.file_url, stats]);
+  useEffect(() => {
+    if (!playing) return;
+    const timer = setInterval(() => {
+      const animation = viewer.current as AnimatedViewer | null;
+      if (animation) { setTime(animation.currentTime); setDuration(animation.duration); }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [playing]);
   // model-viewer shows glTF only; FBX (rigs, ADR-006) is for download.
   if (!glb) return <p class="hint">{t("preview.fbx")}</p>;
   if (!ready) return <span class="spinner" />;
@@ -155,6 +197,30 @@ function MeshPreview({ asset }: { asset: Asset }) {
           </span>
         )}
         {failed && <span class="hint error">{t("mesh.failed")}</span>}
+        {bones.length > 0 && <>
+          <label class="check"><input type="checkbox" checked={showBones}
+            onChange={(event) => setShowBones(event.currentTarget.checked)} />Show skeleton · {bones.length} bones</label>
+          <details><summary>Bone names</summary><div style="max-height:100px;overflow:auto;user-select:text;font-size:12px">{bones.join(", ")}</div></details>
+        </>}
+        {clips.length > 0 && <>
+          <label class="field"><span>Animation clip</span><select value={clip} onChange={(event) => setClip(event.currentTarget.value)}>
+            {clips.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select></label>
+          <div class="row"><button class="button small" onClick={() => {
+            const animation = viewer.current as AnimatedViewer | null;
+            if (!animation) return;
+            if (playing) animation.pause(); else animation.play();
+            setPlaying(!playing);
+          }}>{playing ? "Pause animation" : "Play animation"}</button>
+          <span class="hint">{time.toFixed(1)} / {duration.toFixed(1)} s</span></div>
+          <input aria-label="Animation position" type="range" min="0" max={duration || 1} step="0.01" value={time}
+            onInput={(event) => {
+              const animation = viewer.current as AnimatedViewer | null;
+              if (!animation) return;
+              animation.pause(); setPlaying(false);
+              animation.currentTime = Number(event.currentTarget.value); setTime(animation.currentTime);
+            }} />
+        </>}
       </div>
     </div>
   );
@@ -398,6 +464,8 @@ function DataPreview({ asset }: { asset: Asset }) {
  * picture here. */
 export function AssetPreview({ asset }: { asset: Asset }) {
   if (asset.kind === "motion") return <MotionViewer asset={asset} />;
+  // Animated GLBs include the actual skinned model and play in model-viewer.
+  if (asset.mime === "model/gltf-binary") return <MeshPreview asset={asset} />;
   if (isMotionAsset(asset) || (asset.kind === "text" && !isReadableText(asset)))
     return <DataPreview asset={asset} />;
   if (asset.kind === "image") return <ImagePreview asset={asset} />;

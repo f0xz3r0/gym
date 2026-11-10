@@ -115,6 +115,7 @@ export function sectionOfJob(job: Job): string | undefined {
     [
       "prepare-rig",
       "3d-paint",
+      "3d-cleanup",
       "3d-refine",
       "3d-retopo",
       "3d-bake-normals",

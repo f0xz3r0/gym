@@ -912,6 +912,20 @@ details .fields {
   height: 240px;
   min-height: 0;
 }
+/* Rig and playback controls grow with the asset. Keep their height separate
+   from the canvas so a rigged model never collapses to a few pixels. */
+.details .preview:has(.mesh-preview) {
+  height: auto;
+  min-height: 0;
+}
+.details .mesh-preview {
+  height: auto;
+}
+.details .preview .mesh-preview > model-viewer {
+  flex: none;
+  height: clamp(240px, 35vh, 340px);
+  min-height: 240px;
+}
 .meta {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -956,6 +970,100 @@ details .fields {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+
+/* A cleanup job always leaves the source available for comparison. */
+.cleanup-modal {
+  width: min(1080px, calc(100vw - 32px));
+  max-height: 92vh;
+}
+.cleanup-modal > .row {
+  justify-content: space-between;
+}
+.cleanup-modal h2,
+.cleanup-modal h3,
+.cleanup-modal p {
+  margin: 0;
+}
+.cleanup-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 20px;
+  align-items: start;
+}
+.cleanup-previews,
+.cleanup-previews > section,
+.cleanup-settings,
+.cleanup-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.cleanup-previews > section > .preview {
+  height: 290px;
+  min-height: 240px;
+}
+.cleanup-previews .mesh-preview {
+  height: 100%;
+}
+.cleanup-previews .mesh-preview > model-viewer {
+  min-height: 210px;
+  height: calc(100% - 65px);
+}
+.cleanup-settings fieldset {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 0;
+}
+.cleanup-settings legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.cleanup-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  line-height: 1.45;
+}
+.cleanup-check input {
+  flex: 0 0 auto;
+  margin: 3px 0 0;
+}
+.cleanup-options {
+  margin-top: 12px;
+}
+.cleanup-options > .hint {
+  margin-top: -7px;
+}
+.cleanup-caution {
+  color: var(--wait-text);
+}
+.cleanup-options input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.cleanup-settings details > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.cleanup-settings details[open] > summary {
+  margin-bottom: 8px;
+}
+.cleanup-settings > .button {
+  width: 100%;
+}
+@media (max-width: 720px) {
+  .cleanup-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cleanup-modal {
+    width: calc(100vw - 20px);
+    padding: 12px;
+  }
 }
 
 .notice {
@@ -1299,4 +1407,65 @@ a.button {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+/* Keep previews and their actions reachable in a narrow app window. */
+@media (max-width: 720px) {
+  .app {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .topbar {
+    min-width: 0;
+    padding: 6px 8px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .topbar .brand {
+    display: none;
+  }
+  .topbar .nav {
+    flex: 1 0 100%;
+    min-width: 0;
+    height: 36px;
+  }
+  .topbar .nav a {
+    padding: 0 8px;
+  }
+  .topbar .spacer {
+    display: none;
+  }
+  .topbar .queue {
+    margin-right: auto;
+  }
+  .library {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-width: 0;
+  }
+  .library .browse,
+  .library.viewing .browse {
+    flex: none;
+    overflow: visible;
+    min-width: 0;
+  }
+  .library .details {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    overflow: visible;
+    border-left: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .library:not(.viewing) .details {
+    order: -1;
+  }
+  .library .preview {
+    flex: none;
+    height: min(55vh, 480px);
+    min-height: 320px;
+  }
+  .library .meta dd {
+    overflow-wrap: anywhere;
+  }
 }

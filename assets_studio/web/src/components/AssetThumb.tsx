@@ -55,6 +55,7 @@ export function AssetThumb({ asset }: { asset: Asset | undefined }) {
   if (asset.kind === "image")
     return <img src={asset.file_url} alt={assetName(asset)} loading="lazy" />;
   if (asset.kind === "video") return <VideoThumb asset={asset} />;
+  if (asset.mime === "model/gltf-binary") return <MeshThumb asset={asset} />;
   if (isMotionAsset(asset)) return <MotionIcon />;
   if (asset.kind === "mesh") return <MeshThumb asset={asset} />;
   if (asset.kind === "text")

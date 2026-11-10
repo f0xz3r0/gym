@@ -14,6 +14,8 @@ import {
   servers,
 } from "../state/store";
 import { t } from "../i18n";
+import { ModelCleanup } from "./ModelCleanup";
+import { RiggingActions } from "./RiggingActions";
 
 export function FavoriteButton({ asset }: { asset: Asset }) {
   const label = asset.favorite ? t("asset.unfavorite") : t("asset.favorite");
@@ -96,17 +98,36 @@ export function PaintButtons({ asset }: { asset: Asset }) {
     setImage(null);
     if (!glb || !any) return;
     let current = true;
-    void attempt(() => api.lineage(asset.id)).then(async (parents) => {
-      for (const parent of parents ?? []) {
-        const source =
-          assetById(parent.asset_id) ??
-          (await attempt(() => api.asset(parent.asset_id)));
-        if (source?.kind === "image" && !source.deleted_at) {
-          if (current) setImage(source.id);
-          return;
+    void (async () => {
+      // Cleanup/retopology outputs have only a mesh parent. Walk mesh
+      // ancestors breadth-first so their original reference still works,
+      // preferring a direct image over one farther back in the workflow.
+      const visited = new Set([asset.id]);
+      const meshes = [asset.id];
+      const maxNodes = 64;
+      for (let index = 0; current && index < meshes.length; index++) {
+        const meshId = meshes[index];
+        if (!meshId) continue;
+        const parents = await attempt(() => api.lineage(meshId));
+        if (!current) return;
+        for (const parent of parents ?? []) {
+          if (visited.has(parent.asset_id)) continue;
+          if (visited.size >= maxNodes) break;
+          visited.add(parent.asset_id);
+          const source =
+            assetById(parent.asset_id) ??
+            (await attempt(() => api.asset(parent.asset_id)));
+          if (!current) return;
+          if (source?.kind === "image" && !source.deleted_at) {
+            setImage(source.id);
+            return;
+          }
+          // Deleted meshes still carry useful lineage. Deleted images may
+          // not be submitted as new inputs, so they are never selected.
+          if (source?.kind === "mesh") meshes.push(source.id);
         }
       }
-    });
+    })();
     return () => {
       current = false;
     };
@@ -228,6 +249,8 @@ export function AssetActions({ asset }: { asset: Asset }) {
       <FavoriteButton asset={asset} />
       <RatingButtons asset={asset} />
       <PaintButtons asset={asset} />
+      <ModelCleanup asset={asset} />
+      <RiggingActions asset={asset} />
       <RemoveBackgroundButtons asset={asset} />
       {targets.map((section) => (
         <button

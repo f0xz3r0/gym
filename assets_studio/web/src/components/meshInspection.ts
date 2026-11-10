@@ -7,6 +7,8 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  Bone,
+  SkeletonHelper,
 } from "three";
 import type { Material } from "three";
 
@@ -15,12 +17,22 @@ export type MeshView = "material" | "geometry" | "wireframe";
 export function inspectMesh(element: HTMLElement) {
   const scene = (element as HTMLElement & { [$scene]: ModelScene })[$scene];
   const meshes: Mesh[] = [];
+  const bones: string[] = [];
   scene.model.traverse((node) => {
+    if (node instanceof Bone) bones.push(node.name);
     if (node instanceof Mesh) {
       const mesh = node as Mesh;
       if (!scene.bakedShadows.has(mesh)) meshes.push(mesh);
     }
   });
+  const skeleton = bones.length ? new SkeletonHelper(scene.model) : null;
+  if (skeleton) {
+    skeleton.visible = false;
+    skeleton.renderOrder = 1000;
+    const materials = Array.isArray(skeleton.material) ? skeleton.material : [skeleton.material];
+    for (const material of materials) { material.depthTest = false; material.depthWrite = false; }
+    scene.add(skeleton);
+  }
   const stats = meshes.reduce(
     (total, mesh) => {
       const vertices = mesh.geometry.getAttribute("position").count;
@@ -99,6 +111,11 @@ export function inspectMesh(element: HTMLElement) {
   });
   return {
     stats,
+    bones,
+    setSkeleton(visible: boolean) {
+      if (skeleton) skeleton.visible = visible;
+      scene.queueRender();
+    },
     setView(mode: MeshView, texture: boolean) {
       for (const entry of entries) entry.setView(mode, texture);
       scene.queueRender();
@@ -106,6 +123,11 @@ export function inspectMesh(element: HTMLElement) {
     dispose() {
       for (const entry of entries) entry.dispose();
       wire.dispose();
+      if (skeleton) {
+        skeleton.removeFromParent(); skeleton.geometry.dispose();
+        const materials = Array.isArray(skeleton.material) ? skeleton.material : [skeleton.material];
+        for (const material of materials) material.dispose();
+      }
       scene.queueRender();
     },
   };

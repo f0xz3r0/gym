@@ -34,7 +34,7 @@ export function TopBar() {
         <a
           href={hrefSection(lastSection.value ?? sections.value[0]?.id ?? "")}
           class={
-            current.page === "section" || current.page === "tool"
+            current.page === "section" || (current.page === "tool" && current.toolId !== "blender-builder")
               ? "active"
               : ""
           }
@@ -49,6 +49,10 @@ export function TopBar() {
             class={`dot ${bestState(sections.value.flatMap((section) => section.servers))}`}
           />
           {t("nav.generate")}
+        </a>
+        <a href="#/tool/blender-builder"
+          class={current.page === "tool" && current.toolId === "blender-builder" ? "active" : ""}>
+          Build in Blender
         </a>
         <a
           href={hrefLibrary()}
