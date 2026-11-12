@@ -7,6 +7,9 @@ import { assetById, jobs, mergeJob, putAsset, servers } from "../state/store";
 import { Conflict, pipelineApi, type GameAsset, type Kind, type StepState } from "./api";
 import {
   chosen,
+  conceptReference,
+  rigPose,
+  rigReady,
   included,
   inputsNow,
   isStale,
@@ -133,12 +136,32 @@ export async function act<T>(action: () => Promise<T>): Promise<T | undefined> {
 
 // ------------------------------------------------------------------ running steps
 
+/** The edit instruction for drawing a concept from a reference picture. */
+function referencePrompt(description: string, rigView: boolean) {
+  const what = description.trim().replace(/[.\s]+$/, "");
+  // the camera comes from the rig-ready pose when it is on (one camera only: "three-quarter" here turned a
+  // rig-ready worker 45 degrees, 2026-11-12)
+  const view = rigView ? "" : ", in a three-quarter or side view";
+  return (
+    "Redraw the object in this picture as a clean reference image for a 3D game asset" +
+    (what ? `: ${what}.` : ".") +
+    ` Keep its design, proportions and colours, except where the description asks for something else. Show the whole object alone${view},` +
+    " on a plain light grey background, with soft even light, no ground shadow, no text and nothing else in the picture."
+  );
+}
+
+export const setRigReady = (doc: GameAsset, on: boolean) =>
+  update(doc.id, (next) => void (stepOf(next, "concept").rigReady = on));
+
+export const setReference = (doc: GameAsset, asset: string | null) =>
+  update(doc.id, (next) => void (stepOf(next, "concept").reference = asset));
+
 function jobBody(world: World, step: StepDef, inputs: Record<string, string>): JobCreate {
   const choice = chosen(world, step);
   if (!choice) throw new Error(`No model is set up for “${step.title}”.`);
   const body: JobCreate = {
     server: choice.server.id,
-    task: step.task,
+    task: choice.task.task,
     count: 1,
     params: paramsFor(world, step, choice.task),
     inputs,
@@ -146,9 +169,17 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>): J
   };
   if (choice.task.prompt !== "none") {
     const prompt = (world.doc.prompt || world.doc.idea).trim();
-    if (!prompt && choice.task.prompt === "required")
+    if (!prompt && choice.task.prompt === "required" && !(step.id === "concept" && conceptReference(world.doc)))
       throw new Error("Describe the object first.");
     body.prompt = prompt;
+  }
+  const reference = step.id === "concept" ? conceptReference(world.doc) : undefined;
+  if (reference) {
+    body.inputs = { ...inputs, image: reference };
+    body.prompt = referencePrompt(world.doc.prompt || world.doc.idea, rigReady(world.doc) && rigPose(world.doc.kind) !== "");
+  }
+  if (step.id === "concept" && rigReady(world.doc) && body.prompt) {
+    body.prompt = body.prompt.trim().replace(/\.?$/, ".") + rigPose(world.doc.kind);
   }
   return body;
 }
@@ -191,12 +222,13 @@ export function planRemaining(doc: GameAsset): ChainPlan {
   for (const step of STEPS) {
     if (!included(doc, step)) continue;
     if (!chosen(world, step)) return { run, problem: `No model is set up for “${step.title}”.` };
+    if (step.userInput && !stepOf(doc, step.id).reference) continue; // waits for the user's pick
     const pending = stepJobs(world, step).some((job) => PENDING.has(job.status));
     const upstreamRedone = Object.values(sources(world, step)).some((source) => source && redo.has(source.id));
     const current = picked(world, step) && !isStale(world, step);
     if (pending && !upstreamRedone) continue; // already on its way
     if (current && !upstreamRedone) continue;
-    if (step.id === "concept" && !(doc.prompt || doc.idea).trim())
+    if (step.id === "concept" && !conceptReference(doc) && !(doc.prompt || doc.idea).trim())
       return { run, problem: "Describe the object first." };
     redo.add(step.id);
     run.push(step);
@@ -206,7 +238,8 @@ export function planRemaining(doc: GameAsset): ChainPlan {
 
 /** Start the plan as one chain: each job waits for the job before it on the
  * studio itself, so it continues even with this window closed. */
-export async function runRemaining(doc: GameAsset) {
+export async function runRemaining(doc: GameAsset, status?: (text: string) => void) {
+  if (planRemaining(doc).run.some((step) => step.id === "concept")) doc = await ensureDescription(doc, status);
   const plan = planRemaining(doc);
   if (plan.problem) throw new Error(plan.problem);
   const world = worldOf(doc);
@@ -226,6 +259,8 @@ export async function runRemaining(doc: GameAsset) {
         inputs[role] = result.asset.id;
       }
     }
+    const picked_ = step.userInput ? stepOf(doc, step.id).reference : null;
+    if (step.userInput && picked_) inputs[step.userInput.role] = picked_;
     const job = await api.createJob({ ...jobBody(world, step, inputs), dependencies });
     mergeJob(job);
     scheduled.set(step.id, job);
@@ -284,7 +319,7 @@ export const setParams = (doc: GameAsset, step: StepDef, params: Record<string, 
 
 export const WRITER = "asset-prompt-agent";
 
-export async function writePrompt(doc: GameAsset) {
+export async function writePrompt(doc: GameAsset): Promise<Job> {
   const idea = (doc.idea || doc.prompt).trim();
   if (!idea) throw new Error("Type a short idea first, e.g. “rusty wheelbarrow”.");
   const job = await api.createJob({
@@ -301,6 +336,36 @@ export async function writePrompt(doc: GameAsset) {
     const state = stepOf(next, "prompt");
     state.jobs = [...(state.jobs ?? []), job.id];
   });
+  return job;
+}
+
+/** True when the concept would be drawn from the short idea alone (no written description): the image model then
+ * gets no construction, materials or camera, so a concept is never run from it. */
+export function needsDescription(doc: GameAsset): boolean {
+  const text = (doc.prompt || "").trim();
+  return !text || text === doc.idea.trim() || text.split(/\s+/).length < 25;
+}
+
+/** Before a concept run: write the detailed description from the short idea when there is none (the local
+ * prompt writer, about 30 s), use it, and return the saved document. Without the writer the document is returned
+ * unchanged. */
+export async function ensureDescription(doc: GameAsset, status?: (text: string) => void): Promise<GameAsset> {
+  if (!needsDescription(doc) || !(doc.idea || doc.prompt).trim()) return doc;
+  if (!servers.value.some((server) => server.id === WRITER)) return doc;
+  status?.("Writing a detailed description from the short idea first (about 30 s)…");
+  let job = await writePrompt(doc);
+  const deadline = Date.now() + 5 * 60_000;
+  while (PENDING.has(job.status) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    job = await api.job(job.id);
+    mergeJob(job);
+  }
+  if (job.status !== "succeeded" || !job.outputs[0])
+    throw new Error("The description could not be written: " + (job.error_message ?? job.status));
+  const asset = await api.asset(job.outputs[0]);
+  putAsset(asset);
+  const text = (await assetText(asset)).trim();
+  return usePrompt(docs.value.get(doc.id) ?? doc, text);
 }
 
 /** Use a written prompt: the writer adds camera and styling itself, so the

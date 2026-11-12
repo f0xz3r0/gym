@@ -9,8 +9,7 @@ import { Modal } from "./ui";
 
 const ACCEPT: Record<string, string> = {
   image: "image/png,image/jpeg,image/webp",
-  mesh: ".glb,model/gltf-binary",
-};
+  mesh: ".glb,model/gltf-binary", video: "video/mp4,video/webm,video/quicktime" };
 
 export function Picker({
   kind,
@@ -19,7 +18,7 @@ export function Picker({
   onUpload,
   onClose,
 }: {
-  kind: "image" | "mesh";
+  kind: "image" | "mesh" | "video";
   title: string;
   onPick: (asset: Asset) => void;
   onUpload: (file: File) => Promise<unknown>;

@@ -4,7 +4,7 @@ import { useEffect, useState } from "preact/hooks";
 import { Conflict, pipelineApi, type GameAsset, type GodotProject } from "./api";
 import { Thumb } from "./Preview";
 import { act, toast, update, worldOf } from "./state";
-import { finalResult, picked, STEPS } from "./steps";
+import { picked, sendable, STEPS } from "./steps";
 import { Modal } from "./ui";
 
 const slug = (text: string) =>
@@ -14,7 +14,10 @@ let projectCache: GodotProject[] | null = null;
 
 export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
   const world = worldOf(doc);
-  const final = finalResult(world);
+  const options = sendable(world);
+  const [choice, setChoice] = useState<string | null>(null);
+  const final = options.find((item) => item.step.id === choice) ?? options[0];
+  const move = (final?.result.asset.meta as Record<string, unknown> | undefined)?.move;
   const [projects, setProjects] = useState<GodotProject[] | null>(projectCache);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -22,6 +25,11 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
   const project = doc.godot.project ?? projects?.[0]?.path ?? "";
   const [folder, setFolder] = useState(doc.godot.folder ?? slug(doc.name));
   const [fileName, setFileName] = useState(doc.godot.file_name ?? slug(doc.name));
+  // each motion gets its own file by default: sending a walk must not replace a sneak
+  useEffect(() => {
+    if (typeof move === "string") setFileName(`${slug(doc.name)}-${slug(move).slice(0, 30)}`);
+    else setFileName(doc.godot.file_name ?? slug(doc.name));
+  }, [final?.result.asset.id]);
   const exports = [...(doc.godot.exports ?? [])].reverse();
 
   const refresh = () =>
@@ -61,7 +69,12 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
           exports: [...(next.godot.exports ?? []), { ...record, asset: final.result.asset.id }],
         };
       });
-      toast(`Sent to ${record.project_name} as ${record.res_path}. Switch to Godot and it imports automatically.`, "good");
+      toast(
+        `Sent to ${record.project_name} as ${record.res_path}.` +
+          (record.demo_scene ? ` Demo: open ${record.demo_scene} and press F6 (walks on a checker floor).` : "") +
+          " Switch to Godot and it imports automatically.",
+        "good",
+      );
     } catch (error) {
       if (error instanceof Conflict) setReplace(error.message);
       else toast(error instanceof Error ? error.message : String(error), "error");
@@ -90,8 +103,25 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
             <span class="thumb">
               <Thumb asset={final.result.asset} />
             </span>
-            <div>
-              <b>Sends the result of “{final.step.title}”</b>
+            <div class="grow">
+              {options.length > 1 ? (
+                <label class="field">
+                  <span>Send</span>
+                  <select value={final.step.id} onChange={(event) => setChoice(event.currentTarget.value)}>
+                    {options.map((item) => {
+                      const m = (item.result.asset.meta as Record<string, unknown>).move;
+                      return (
+                        <option key={item.step.id} value={item.step.id}>
+                          {item.step.title}
+                          {typeof m === "string" ? ` · “${m.slice(0, 50)}”` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              ) : (
+                <b>Sends the result of “{final.step.title}”</b>
+              )}
               <p class="muted small">
                 {final.result.asset.mime === "model/x-fbx" ? "FBX file" : "GLB file with textures"} ·{" "}
                 {(final.result.asset.size_bytes / 1e6).toFixed(1)} MB

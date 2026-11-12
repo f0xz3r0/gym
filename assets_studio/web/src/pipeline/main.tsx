@@ -1,5 +1,5 @@
-// The pipeline UI: game assets from idea to Godot. Served at "/"; the original
-// studio UI stays at "/classic".
+// The studio UI (v2): game assets from idea to Godot, the library of everything made, the queue, the models and
+// the tools (Blender builder, video frames). Served at "/".
 import "./style.css";
 
 import { signal } from "@preact/signals";
@@ -10,23 +10,37 @@ import { activeJobs, connect, connected, notice, servers } from "../state/store"
 import { AssetPage } from "./AssetPage";
 import { Home } from "./Home";
 import { ModelsPage, QueuePage } from "./Pages";
+import { LibraryPage } from "./Library";
+import { BlenderBuilderPage } from "../pages/BlenderBuilderPage";
+import { FramesPage } from "./Frames";
 import { act, loadDocs, toasts } from "./state";
 import { Dot } from "./ui";
 
-type Route = { page: "home" } | { page: "asset"; id: string } | { page: "queue" } | { page: "models" };
+type Route =
+  | { page: "home" }
+  | { page: "asset"; id: string }
+  | { page: "queue" }
+  | { page: "models" }
+  | { page: "library"; id: string | null }
+  | { page: "builder" }
+  | { page: "frames" };
 
 function parse(hash: string): Route {
   const [page, id] = hash.replace(/^#\/?/, "").split("/");
   if (page === "a" && id) return { page: "asset", id: decodeURIComponent(id) };
-  if (page === "queue") return { page: "queue" };
+  if (page === "queue" || page === "jobs") return { page: "queue" };
+  if (page === "library") return { page: "library", id: id ? decodeURIComponent(id) : null };
+  if (page === "builder" || (page === "tool" && id === "blender-builder")) return { page: "builder" };
+  if (page === "frames" || (page === "tool" && id === "frame")) return { page: "frames" };
   if (page === "models") return { page: "models" };
   return { page: "home" };
 }
 
 const route = signal<Route>(parse(window.location.hash));
 window.addEventListener("hashchange", () => {
+  const before = route.value.page;
   route.value = parse(window.location.hash);
-  window.scrollTo(0, 0);
+  if (!(before === "library" && route.value.page === "library")) window.scrollTo(0, 0);
 });
 
 function overallState() {
@@ -50,6 +64,9 @@ function TopBar() {
         <a href="#/" class={current.page === "home" || current.page === "asset" ? "active" : ""}>
           Assets
         </a>
+        <a href="#/library" class={current.page === "library" ? "active" : ""}>
+          Library
+        </a>
         <a href="#/queue" class={current.page === "queue" ? "active" : ""}>
           Queue {busy > 0 && <span class="badge">{busy}</span>}
         </a>
@@ -58,11 +75,11 @@ function TopBar() {
         </a>
       </nav>
       <span class="spacer" />
-      <a class="ghost-link" href="/classic#/tool/blender-builder" target="_blank" rel="noreferrer">
-        Build in Blender ↗
+      <a class="ghost-link" href="#/frames" title="Save any frame of a video as an image">
+        Video frames
       </a>
-      <a class="ghost-link" href="/classic" target="_blank" rel="noreferrer">
-        Classic studio ↗
+      <a class="ghost-link" href="#/builder" title="Build a prop procedurally in Blender">
+        Build in Blender
       </a>
     </header>
   );
@@ -104,6 +121,14 @@ function App() {
           <QueuePage />
         ) : current.page === "models" ? (
           <ModelsPage />
+        ) : current.page === "library" ? (
+          <LibraryPage selectedId={current.id} />
+        ) : current.page === "builder" ? (
+          <div class="tool-page">
+            <BlenderBuilderPage />
+          </div>
+        ) : current.page === "frames" ? (
+          <FramesPage />
         ) : (
           <Home />
         )}

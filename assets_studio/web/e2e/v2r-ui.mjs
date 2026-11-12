@@ -1,0 +1,20 @@
+// Screenshots of the new pipeline UI around the motion step (animation pipeline v1.0).
+import { chromium } from "playwright-core";
+const [, , out, assetId] = process.argv;
+const browser = await chromium.launch({ executablePath: process.env.CHROME });
+const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+await page.goto(`http://127.0.0.1:9000/#/`, { waitUntil: "networkidle" });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: `${out}/1-assets.png` });
+await page.goto(`http://127.0.0.1:9000/#/a/${assetId}`, { waitUntil: "networkidle" });
+await page.waitForTimeout(2500);
+await page.screenshot({ path: `${out}/2-asset-top.png` });
+const rig = page.locator("h3, h2, .title, strong", { hasText: "Skeleton (rig)" }).last();
+await rig.scrollIntoViewIfNeeded();
+await page.mouse.wheel(0, 250);
+await page.waitForTimeout(800);
+await page.screenshot({ path: `${out}/3-rig-and-motion-steps.png` });
+await page.goto(`http://127.0.0.1:9000/#/models`, { waitUntil: "networkidle" });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: `${out}/4-models.png`, fullPage: true });
+await browser.close();

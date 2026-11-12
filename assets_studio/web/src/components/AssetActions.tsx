@@ -1,10 +1,9 @@
-// Actions on an asset, shared by the section view and the library.
+// Actions on one asset (favourite, rating, background removal, delete), used by the library (pipeline/Library.tsx).
+// The classic studio's full action bar is archived in .local/archive/2026-11-12/classic-ui.
 import { useEffect, useState } from "preact/hooks";
 
 import { api, type Asset } from "../api/client";
-import { acceptingTasks, sendTo } from "../state/drafts";
 import { go, hrefSection } from "../state/router";
-import { sections } from "../state/sections";
 import {
   assetById,
   attempt,
@@ -14,8 +13,6 @@ import {
   servers,
 } from "../state/store";
 import { t } from "../i18n";
-import { ModelCleanup } from "./ModelCleanup";
-import { RiggingActions } from "./RiggingActions";
 
 export function FavoriteButton({ asset }: { asset: Asset }) {
   const label = asset.favorite ? t("asset.unfavorite") : t("asset.favorite");
@@ -237,32 +234,3 @@ export function DeleteButton({ asset }: { asset: Asset }) {
 
 /** Download, favourite, "use as input" in each section that accepts the
  * asset, and delete. */
-export function AssetActions({ asset }: { asset: Asset }) {
-  const targets = sections.value.filter(
-    (section) => acceptingTasks(section, asset).length > 0,
-  );
-  return (
-    <>
-      <a class="button small" href={asset.file_url} download>
-        {t("asset.download")}
-      </a>
-      <FavoriteButton asset={asset} />
-      <RatingButtons asset={asset} />
-      <PaintButtons asset={asset} />
-      <ModelCleanup asset={asset} />
-      <RiggingActions asset={asset} />
-      <RemoveBackgroundButtons asset={asset} />
-      {targets.map((section) => (
-        <button
-          key={section.id}
-          class="button small"
-          title={t("asset.sendTitle", { section: section.title })}
-          onClick={() => sendTo(section, asset)}
-        >
-          → {section.title}
-        </button>
-      ))}
-      <DeleteButton asset={asset} />
-    </>
-  );
-}

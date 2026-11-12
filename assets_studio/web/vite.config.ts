@@ -10,7 +10,8 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 2000,
-    rollupOptions: { input: { studio: "index.html", flow: "flow.html", pipeline: "pipeline.html" } },
+    // the classic studio (index.html) was retired 2026-11-12: .local/archive/2026-11-12/classic-ui
+    rollupOptions: { input: { flow: "flow.html", pipeline: "pipeline.html" } },
   },
   server: {
     proxy: {

@@ -81,6 +81,12 @@ def fit_on_gpu(pipeline: Any) -> None:
     12 views at once ran out of memory; the result is the same)."""
     from accelerate import cpu_offload_with_hook
 
+    if os.environ.get("HUNYUAN_PAINT21_FULL_GPU") == "1":
+        # A card with room for it all (24 GB): no offload hooks. With the shared Windows runtime the hooks left
+        # the latents on the CPU ("cuda:0 and cpu" in the scheduler step).
+        pipeline.to("cuda")
+        pipeline.enable_vae_slicing()
+        return
     pipeline.unet.to("cuda")
     pipeline.vae.to("cuda")
     pipeline.enable_vae_slicing()

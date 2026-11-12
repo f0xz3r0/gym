@@ -14,6 +14,10 @@ export type StepId =
   | "paint"
   | "normals"
   | "rig"
+  | "animrig"
+  | "motion"
+  | "textmotion"
+  | "mocap"
   | "animate";
 
 export interface StepDef {
@@ -35,6 +39,10 @@ export interface StepDef {
   typical: string;
   /** Uses a big model: runs one at a time with the other heavy steps. */
   heavy?: boolean;
+  /** An input the user picks (from the library or an upload), not an earlier step: kept in the step's reference. */
+  userInput?: { role: string; kind: "image" | "video"; label: string };
+  /** Settings taken from the game asset itself (e.g. its name), before the user's own. */
+  paramsFrom?: (doc: GameAsset) => Record<string, unknown>;
 }
 
 const always = () => true;
@@ -123,7 +131,7 @@ export const STEPS: StepDef[] = [
     title: "Paint textures",
     blurb: "Paints colour and material textures onto the mesh, matching the concept image.",
     task: "3d-paint",
-    servers: ["trellis2-paint"],
+    servers: ["hunyuan-paint21", "trellis2-paint"],
     optional: false,
     defaultOn: always,
     produces: "mesh",
@@ -146,14 +154,81 @@ export const STEPS: StepDef[] = [
   {
     id: "rig",
     title: "Skeleton (rig)",
-    blurb: "Adds bones and skin weights so the model can move. For characters and creatures.",
+    blurb:
+      "Adds bones and skin weights so a prop or machine can move (doors, wheels, arms). Characters and creatures " +
+      "use the Animation rig step instead.",
     task: "3d-to-rig",
-    servers: ["skintokens"],
+    servers: ["skintokens", "unirig"],
     optional: true,
-    defaultOn: (kind) => kind === "character" || kind === "creature",
+    defaultOn: (kind) => kind === "prop" || kind === "mechanical",
     produces: "mesh",
     from: { mesh: MESH_CHAIN },
     typical: "about 1 min",
+  },
+  {
+    id: "animrig",
+    title: "Animation rig (auto-rig)",
+    blurb:
+      "Animation pipeline v2.0, step 1: video2rig's auto-rig gives the model its own skeleton (UniRig, checked on " +
+      "the mesh) and skin, in a relaxed start pose. Look at the skeleton and the test poses before the motion step.",
+    task: "ai-video-rig",
+    servers: ["video2rig"],
+    optional: true,
+    defaultOn: (kind) => kind === "creature" || kind === "character",
+    produces: "mesh",
+    from: { mesh: ["normals", "paint", "gamemesh", "cleanup", "detail", "shape"] },
+    paramsFrom: (doc) => ({ creature: doc.name }),
+    typical: "about 3 min",
+    heavy: true,
+  },
+  {
+    id: "motion",
+    title: "Motion from AI video",
+    blurb:
+      "Animation pipeline v2.0, step 2: MiniMax-H3 films the rigged model from the front and the side, both views " +
+      "are checked against each other, and the move is fitted to the rig as a looping, in-place game animation. " +
+      "Running it approves the rig.",
+    task: "ai-video-motion",
+    servers: ["video2rig"],
+    optional: true,
+    defaultOn: (kind) => kind === "creature" || kind === "character",
+    produces: "mesh",
+    from: { rig: ["animrig"] },
+    paramsFrom: (doc) => ({ creature: doc.name }),
+    typical: "about 30 min the first time (the reader trains once per creature), then about 12 min per move",
+    heavy: true,
+  },
+  {
+    id: "textmotion",
+    title: "Motion from text (Kimodo)",
+    blurb:
+      "Type what the character does (\"walks forward continuously, arms swinging\"): NVIDIA Kimodo makes the " +
+      "motion in seconds and it is put on this character's own rig, as a game loop. Humanoids only.",
+    task: "ai-text-motion",
+    servers: ["kimodo"],
+    optional: true,
+    defaultOn: (kind) => kind === "character",
+    produces: "mesh",
+    from: { rig: ["animrig"] },
+    typical: "about 1 min (the first time a prompt is used: about 30 s more)",
+    heavy: true,
+  },
+  {
+    id: "mocap",
+    title: "Motion from real video (MoCapAnything)",
+    blurb:
+      "Pick a video of a real person or animal doing the move: MoCapAnything reads the motion and puts it on " +
+      "this character's rig. Best with one subject, the whole body in view, a steady camera.",
+    task: "video-to-motion",
+    servers: ["mocapanything"],
+    optional: true,
+    defaultOn: never,
+    produces: "mesh",
+    from: { rig: ["animrig"] },
+    userInput: { role: "video", kind: "video", label: "Video of the move" },
+    params: { output_format: "glb" },
+    typical: "a few minutes",
+    heavy: true,
   },
   {
     id: "animate",
@@ -164,7 +239,7 @@ export const STEPS: StepDef[] = [
     optional: true,
     defaultOn: never,
     produces: "mesh",
-    from: { rig: ["rig"] },
+    from: { rig: ["animrig", "rig"] },
     params: { preset: "weight-check" },
     typical: "about 30 s",
   },
@@ -173,7 +248,7 @@ export const STEPS: StepDef[] = [
 export const stepById = (id: string) => STEPS.find((step) => step.id === id);
 
 /** Final result candidates for Godot, nearest the end first. */
-export const FINAL_CHAIN: StepId[] = ["animate", "rig", ...MESH_CHAIN];
+export const FINAL_CHAIN: StepId[] = ["motion", "textmotion", "mocap", "animate", "rig", "animrig", ...MESH_CHAIN];
 
 export const KINDS: { id: Kind; label: string; hint: string; purpose: string }[] = [
   { id: "prop", label: "Prop", hint: "Barrels, rocks, furniture", purpose: "Object reference" },
@@ -209,8 +284,44 @@ export function candidates(step: StepDef, servers: Server[]): { server: Server; 
   });
 }
 
+/** Concept step: ask for a rig-ready pose. Default on for characters and creatures (they get animated). */
+export function rigReady(doc: GameAsset): boolean {
+  return stepState(doc, "concept").rigReady ?? (doc.kind === "character" || doc.kind === "creature");
+}
+
+/** What a rig-ready concept asks for, by kind (lessons of animation pipeline v2.0, 2026-11-12: the T-pose, empty-
+ * handed worker rigged cleanly; a bag in the hand, arms against the chest and a shaggy coat did not). */
+export function rigPose(kind: Kind): string {
+  // the same pose and camera the prompt writer's rigging purposes ask for (asset_prompt_service.py PURPOSE)
+  if (kind === "character")
+    return (
+      " Exact front view of the full body from head to feet, in a symmetrical neutral A-pose: arms held away from " +
+      "the torso at about 45 degrees, hands open and empty, legs apart with clear gaps, feet level. Nothing held or " +
+      "carried (no bag, no weapon, no tool), no cape or long loose cloth."
+    );
+  if (kind === "creature")
+    return (
+      " Strict side view of the whole animal from nose to tail, standing in a calm neutral pose on all its feet: " +
+      "legs straight and clearly apart, front limbs held away from the chest, tail straight out behind. A smooth, " +
+      "compact silhouette with a short or sleek coat: no long loose fur or strands, nothing hanging or held."
+    );
+  return "";
+}
+
+/** The concept step's reference picture (asset id), if one is set. */
+export function conceptReference(doc: GameAsset): string | undefined {
+  return stepState(doc, "concept").reference ?? undefined;
+}
+
+/** A step as it runs now: with a reference picture the concept is an image
+ * edit (Qwen-Image, picture + description) instead of text-to-image. */
+export function effective(world: World, step: StepDef): StepDef {
+  if (step.id !== "concept" || !conceptReference(world.doc)) return step;
+  return { ...step, task: "image-to-image", servers: ["qwen-image"] };
+}
+
 export function chosen(world: World, step: StepDef) {
-  const options = candidates(step, world.servers);
+  const options = candidates(effective(world, step), world.servers);
   const wanted = stepState(world.doc, step.id).server;
   return options.find((option) => option.server.id === wanted) ?? options[0];
 }
@@ -278,6 +389,11 @@ export function inputsNow(
     if (!result) return { missing: source };
     inputs[role] = result.asset.id;
   }
+  if (step.userInput) {
+    const chosen = stepState(world.doc, step.id).reference;
+    if (!chosen) return { missing: null };
+    inputs[step.userInput.role] = chosen;
+  }
   return { inputs };
 }
 
@@ -286,9 +402,22 @@ export function inputsNow(
 export function isStale(world: World, step: StepDef): boolean {
   const result = picked(world, step);
   if (!result?.job) return false;
+  // A concept made from a reference is out of date when the reference changes.
+  if (step.id === "concept") return (result.job.inputs.image ?? undefined) !== conceptReference(world.doc);
   const now = inputsNow(world, step);
   if (!("inputs" in now)) return false;
-  return Object.entries(now.inputs).some(([role, id]) => result.job?.inputs[role] !== id);
+  const job = result.job;
+  return Object.entries(now.inputs).some(([role, id]) => usedInput(world, job, role) !== id);
+}
+
+/** The asset a job used for an input role. A job queued as part of a chain
+ * names the earlier job's output (dependencies) rather than an asset id. */
+function usedInput(world: World, job: Job, role: string): string | undefined {
+  const direct = job.inputs[role];
+  if (direct) return direct;
+  const dep = job.dependencies?.[role];
+  if (!dep) return undefined;
+  return world.jobs.get(dep.job_id)?.outputs[dep.output_index ?? 0];
 }
 
 export type Status = "off" | "running" | "failed" | "stale" | "done" | "ready" | "blocked" | "nomodel";
@@ -307,13 +436,25 @@ export function status(world: World, step: StepDef): Status {
 
 /** The final model to send to Godot. */
 export function finalResult(world: World): { step: StepDef; result: Result } | undefined {
+  return sendable(world)[0];
+}
+
+const MOTION_STEPS: StepId[] = ["motion", "textmotion", "mocap"];
+
+/** What Send to Godot can send, best first: every motion result (newest first: the one made last is the one you
+ * want), then the newest model of the rest of the chain. */
+export function sendable(world: World): { step: StepDef; result: Result }[] {
+  const out: { step: StepDef; result: Result }[] = [];
   for (const id of FINAL_CHAIN) {
     const step = stepById(id);
     if (!step || !included(world.doc, step)) continue;
     const result = picked(world, step);
-    if (result) return { step, result };
+    if (result) out.push({ step, result });
   }
-  return undefined;
+  const motions = out.filter((item) => MOTION_STEPS.includes(item.step.id));
+  motions.sort((a, b) => (a.result.asset.id < b.result.asset.id ? 1 : -1));
+  const rest = out.filter((item) => !MOTION_STEPS.includes(item.step.id)).slice(0, 1);
+  return [...motions, ...rest];
 }
 
 /** A picture to represent the game asset: the cut-out, else the concept. */
@@ -338,6 +479,7 @@ export function paramsFor(world: World, step: StepDef, task: Task): Record<strin
   return {
     ...defaults,
     ...known(step.params ?? {}),
+    ...known(step.paramsFrom?.(world.doc) ?? {}),
     ...known(stepState(world.doc, step.id).params ?? {}),
   };
 }

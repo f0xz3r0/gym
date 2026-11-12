@@ -15,10 +15,16 @@ export interface StepState {
   /** Model chosen for this step; unset = recommended. */
   server?: string;
   params?: Record<string, unknown>;
+  /** Concept step only: a picture (asset id) to draw the concept from. */
+  reference?: string | null;
+  /** Concept step only: ask for a pose the auto-rig handles (T-pose, empty hands, smooth silhouette). */
+  rigReady?: boolean;
 }
 
 export interface GodotExportRecord {
   res_path: string;
+  /** A ready-to-play demo scene written beside an in-place animation (res:// path). */
+  demo_scene?: string | null;
   path: string;
   project: string;
   project_name: string;

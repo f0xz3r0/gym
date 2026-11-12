@@ -2,7 +2,8 @@
 // buttons that start work right here.
 import { useEffect, useState } from "preact/hooks";
 
-import type { Asset } from "../api/client";
+import { api, type Asset } from "../api/client";
+import { putAsset } from "../state/store";
 import { ParamsForm, type Texts } from "../components/ParamsForm";
 import type { GameAsset } from "./api";
 import { Picker } from "./Picker";
@@ -12,10 +13,13 @@ import {
   addExisting,
   assetText,
   cancelJob,
+  ensureDescription,
   retryJob,
   runStep,
   setIncluded,
   setParams,
+  setReference,
+  setRigReady,
   setServer,
   toast,
   update,
@@ -28,6 +32,10 @@ import {
 import {
   candidates,
   chosen,
+  conceptReference,
+  effective,
+  rigPose,
+  rigReady,
   inputsNow,
   paramsFor,
   PENDING,
@@ -68,7 +76,7 @@ export function StepCard({
   const latest = jobs[0];
   const list = results(world, step);
   const current = picked(world, step);
-  const options = candidates(step, world.servers);
+  const options = candidates(effective(world, step), world.servers);
   const choice = chosen(world, step);
   const [settings, setSettings] = useState(false);
   const [texts, setTexts] = useState<Texts>({});
@@ -105,7 +113,9 @@ export function StepCard({
         step.id === "concept" && draft !== undefined && draft !== doc.prompt
           ? await update(doc.id, (next) => void (next.prompt = draft))
           : doc;
-      return runStep(latest, step, step.id === "concept" ? variations : 1);
+      // never draw a concept from the short idea alone: write the detailed description first
+      const ready = step.id === "concept" ? await ensureDescription(latest, (text) => toast(text, "good")) : latest;
+      return runStep(ready, step, step.id === "concept" ? variations : 1);
     });
     setStarting(false);
     if (started) toast(`${step.title}: started. You can keep working; it runs in the background.`, "good");
@@ -133,6 +143,7 @@ export function StepCard({
       </header>
 
       {step.id === "concept" && <ConceptPrompt doc={doc} />}
+      {step.userInput && <UserInput doc={doc} step={step} />}
 
       {list.length > 0 && (
         <div class="results" role="list" aria-label={`${step.title} results`}>
@@ -407,6 +418,108 @@ function ConceptPrompt({ doc }: { doc: GameAsset }) {
           onBlur={save}
         />
       </label>
+      <ReferencePicture doc={doc} />
+      {(doc.kind === "character" || doc.kind === "creature") && (
+        <label class="check rig-ready" title={rigPose(doc.kind).trim()}>
+          <input type="checkbox" checked={rigReady(doc)}
+            onChange={(event) => void act(() => setRigReady(doc, event.currentTarget.checked))} />
+          Rig-ready pose for animation{" "}
+          <span class="muted small">
+            ({doc.kind === "character" ? "front view, A-pose, empty hands" : "side view, legs apart, tail back, smooth coat"})
+          </span>
+        </label>
+      )}
+    </div>
+  );
+}
+
+/** Optional picture the concept is drawn from (Qwen-Image edit: picture + description). */
+function ReferencePicture({ doc }: { doc: GameAsset }) {
+  const world = worldOf(doc);
+  const id = conceptReference(doc);
+  const asset = id ? world.asset(id) : undefined;
+  const [choosing, setChoosing] = useState(false);
+  return (
+    <div class="reference">
+      <span class="reference-label">Reference picture</span>
+      {id ? (
+        <span class="thumb reference-thumb" title="The concept is drawn from this picture">
+          {asset ? <Thumb asset={asset} /> : "…"}
+        </span>
+      ) : (
+        <span class="muted small">
+          Optional: a photo, sketch or drawing. The concept image is then drawn from it, following the description.
+        </span>
+      )}
+      <span class="spacer" />
+      <button class="button small" onClick={() => setChoosing(true)}>
+        {id ? "Change…" : "Add a reference…"}
+      </button>
+      {id && (
+        <button class="button small ghost" onClick={() => void act(() => setReference(doc, null))}>
+          Remove
+        </button>
+      )}
+      {choosing && (
+        <Picker
+          kind="image"
+          title="Reference picture for the concept image"
+          onPick={(picked: Asset) => {
+            void act(() => setReference(doc, picked.id));
+            setChoosing(false);
+          }}
+          onUpload={async (file) => {
+            const uploaded = await api.upload(file, `${doc.name} · reference`);
+            putAsset(uploaded);
+            await setReference(doc, uploaded.id);
+          }}
+          onClose={() => setChoosing(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+
+/** The input a step takes from the user (a video for motion capture): pick from the library or upload. */
+function UserInput({ doc, step }: { doc: GameAsset; step: StepDef }) {
+  const spec = step.userInput!;
+  const world = worldOf(doc);
+  const id = doc.steps[step.id]?.reference ?? undefined;
+  const asset = id ? world.asset(id) : undefined;
+  const [choosing, setChoosing] = useState(false);
+  const set = (value: string | null) =>
+    update(doc.id, (next) => {
+      next.steps[step.id] = { ...(next.steps[step.id] ?? {}), reference: value };
+    });
+  return (
+    <div class="reference">
+      <span class="reference-label">{spec.label}</span>
+      {id ? (
+        <span class="thumb reference-thumb">{asset ? <Thumb asset={asset} /> : "…"}</span>
+      ) : (
+        <span class="muted small">Needed: pick one from the library or upload it.</span>
+      )}
+      <span class="spacer" />
+      <button class={`button small${id ? "" : " primary"}`} onClick={() => setChoosing(true)}>
+        {id ? "Change…" : "Pick a video…"}
+      </button>
+      {choosing && (
+        <Picker
+          kind={spec.kind}
+          title={`${spec.label} for “${step.title}”`}
+          onPick={(picked: Asset) => {
+            void act(() => set(picked.id));
+            setChoosing(false);
+          }}
+          onUpload={async (file) => {
+            const uploaded = await api.upload(file, `${doc.name} · ${spec.label}`);
+            putAsset(uploaded);
+            await set(uploaded.id);
+          }}
+          onClose={() => setChoosing(false)}
+        />
+      )}
     </div>
   );
 }

@@ -70,7 +70,16 @@ function Loaded({ doc }: { doc: GameAsset }) {
   const plan = planRemaining(doc);
   const rigStep = stepById("rig");
   // The test animation only makes sense once a skeleton step is on.
-  const steps = STEPS.filter((step) => step.id !== "animate" || (rigStep !== undefined && included(doc, rigStep)));
+  // "animate" retargets onto the Skeleton step's rig; "motion" (v1.1) makes its own rig, so it is always offered
+  // "animate" retargets onto the Skeleton step's rig; "motion" needs the Animation rig step
+  const animRig = stepById("animrig");
+  const steps = STEPS.filter(
+    (step) =>
+      (step.id !== "animate" ||
+        (rigStep !== undefined && included(doc, rigStep)) ||
+        (animRig !== undefined && included(doc, animRig))) &&
+      (!["motion", "textmotion", "mocap"].includes(step.id) || (animRig !== undefined && included(doc, animRig))),
+  );
   const kind = KINDS.find((item) => item.id === doc.kind);
 
   return (
@@ -170,8 +179,8 @@ function Loaded({ doc }: { doc: GameAsset }) {
                 <a class="button small" href={shownAsset.file_url} download>
                   Download
                 </a>
-                <a class="button small ghost" href={`/classic#/library/${shownAsset.id}`} target="_blank" rel="noreferrer">
-                  Open in classic library ↗
+                <a class="button small ghost" href={`#/library/${shownAsset.id}`} target="_blank" rel="noreferrer">
+                  Open in library ↗
                 </a>
               </div>
             </div>
@@ -208,7 +217,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
               disabled={!!plan.problem}
               onClick={() => {
                 setConfirmRun(false);
-                void act(() => runRemaining(doc)).then(
+                void act(() => runRemaining(doc, (text) => toast(text, "good"))).then(
                   (ran) => ran && toast(`Started ${ran.length} steps. Progress shows on each step.`, "good"),
                 );
               }}

@@ -1,0 +1,13 @@
+import { chromium } from "playwright-core";
+const [, , out] = process.argv;
+const browser = await chromium.launch({ executablePath: process.env.CHROME });
+const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
+await page.goto("http://127.0.0.1:9000/#/frames", { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Pick a video/ }).click();
+await page.waitForTimeout(2000);
+await page.locator(".picker-item").first().click();
+await page.waitForTimeout(3000);
+await page.screenshot({ path: `${out}/32-frames-video.png` });
+console.log((await page.locator(".frames-video").innerText()).replace(/\s+/g, " ").slice(0, 200), errors);
+await browser.close();

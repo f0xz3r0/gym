@@ -1,0 +1,15 @@
+import { chromium } from "playwright-core";
+const [, , out, assetId] = process.argv;
+const browser = await chromium.launch({ executablePath: process.env.CHROME });
+const page = await browser.newPage({ viewport: { width: 1400, height: 1100 } });
+await page.goto(`http://127.0.0.1:9000/#/a/${assetId}`, { waitUntil: "networkidle" });
+await page.waitForTimeout(1500);
+const heading = page.locator("h3, h2, .title, strong", { hasText: "Motion from AI video" }).last();
+await heading.scrollIntoViewIfNeeded();
+const settings = page.locator("section, article, .card, .step").filter({ hasText: "Animation pipeline v1.0" }).last();
+const open = settings.locator("text=Settings").first();
+if (await open.count()) await open.click();
+await page.waitForTimeout(500);
+await settings.screenshot({ path: out });
+console.log(await settings.innerText());
+await browser.close();

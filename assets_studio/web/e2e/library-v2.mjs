@@ -1,0 +1,20 @@
+import { chromium } from "playwright-core";
+const [, , out] = process.argv;
+const browser = await chromium.launch({ executablePath: process.env.CHROME, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+const errors = [];
+page.on("pageerror", (e) => errors.push(String(e)));
+await page.goto("http://127.0.0.1:9000/#/library", { waitUntil: "networkidle" });
+await page.waitForTimeout(2500);
+await page.screenshot({ path: `${out}/20-library.png` });
+await page.locator(".library-card").first().click();
+await page.waitForTimeout(6000);
+await page.screenshot({ path: `${out}/21-library-detail.png` });
+await page.getByRole("button", { name: "Animations" }).click();
+await page.waitForTimeout(2500);
+await page.locator(".library-card").first().click();
+await page.waitForTimeout(7000);
+await page.screenshot({ path: `${out}/22-library-anim.png` });
+for (const h of ["#/builder", "#/frames"]) { await page.goto("http://127.0.0.1:9000/" + h); await page.waitForTimeout(2500); await page.screenshot({ path: `${out}/23-${h.slice(2)}.png` }); }
+console.log("cards", await page.goto("http://127.0.0.1:9000/#/library").then(() => page.waitForTimeout(2000)).then(() => page.locator(".library-card").count()), "errors", errors.slice(0, 5));
+await browser.close();
