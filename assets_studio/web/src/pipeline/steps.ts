@@ -144,15 +144,17 @@ export const STEPS: StepDef[] = [
     id: "repair",
     title: "Repair texture",
     blurb:
-      "Opens Blender with the painted model and StableGen: fix a blotch, a seam or a wrong colour, press Bake " +
-      "Textures, then \"Send back to Studio\" in the Studio tab. Closing Blender without sending changes nothing.",
+      "Fix the painted texture by hand. Editor (in Settings): Blender + StableGen for AI repaints, or Substance " +
+      "3D Painter for hand painting and smart materials on mesh maps baked from the detailed mesh, exported at " +
+      "4K. Finish with \"Send back to Studio\" in the Studio panel; closing without sending changes nothing.",
     task: "3d-texture-repair",
     servers: ["texture-repair"],
     optional: true,
     defaultOn: never,
     produces: "mesh",
-    from: { mesh: ["paint"] },
-    typical: "as long as you work in Blender (it opens in about 20 s)",
+    // high: the detailed mesh, for Painter's baking (Blender ignores it)
+    from: { mesh: ["paint"], high: ["cleanup", "detail", "shape"] },
+    typical: "as long as you work in it (Blender opens in about 20 s, Painter in about a minute)",
     heavy: true,
   },
   {
