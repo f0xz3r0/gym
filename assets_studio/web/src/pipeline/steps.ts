@@ -329,6 +329,18 @@ export function conceptReference(doc: GameAsset): string | undefined {
   return stepState(doc, "concept").reference ?? undefined;
 }
 
+export type ReferenceMode = "as-is" | "pose" | "redraw";
+
+/** How the concept step uses its reference picture (see StepState.referenceMode). */
+export function referenceMode(doc: GameAsset): ReferenceMode {
+  return stepState(doc, "concept").referenceMode ?? "pose";
+}
+
+/** True when the concept is the user's own picture, used as it is: nothing is generated. */
+export function conceptAsIs(doc: GameAsset): boolean {
+  return !!conceptReference(doc) && referenceMode(doc) === "as-is";
+}
+
 /** A step as it runs now: with a reference picture the concept is an image
  * edit (Qwen-Image, picture + description) instead of text-to-image. */
 export function effective(world: World, step: StepDef): StepDef {

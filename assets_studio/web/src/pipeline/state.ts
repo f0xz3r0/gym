@@ -7,7 +7,10 @@ import { assetById, jobs, mergeJob, putAsset, servers } from "../state/store";
 import { Conflict, pipelineApi, type GameAsset, type Kind, type StepState } from "./api";
 import {
   chosen,
+  conceptAsIs,
   conceptReference,
+  referenceMode,
+  type ReferenceMode,
   rigPose,
   rigReady,
   included,
@@ -150,11 +153,42 @@ function referencePrompt(description: string, rigView: boolean) {
   );
 }
 
+/** The fixed edit instruction for "pose it for 3D": keep the picture's object exactly, change only pose, camera and
+ * background. The rig-ready pose (front A-pose / strict side view) is appended by jobBody when it is on. */
+function posePrompt(rigView: boolean) {
+  return (
+    "Keep the character or object in this picture exactly as it is: the same design, shape, proportions, colours, " +
+    "materials, clothing and details. Do not redesign, restyle or add anything. Only change its pose and the camera " +
+    "so it can be modelled in 3D: show the whole body, nothing cut off, nothing covering it" +
+    (rigView ? "" : ", in a clear front or three-quarter view") +
+    ", alone on a plain light grey background, with soft even light, no ground shadow, no text and nothing else in " +
+    "the picture."
+  );
+}
+
+/** Make the reference picture itself the concept result (and the pick), on a document being updated. */
+function useReferenceAsIs(next: GameAsset, reference: string) {
+  const state = stepOf(next, "concept");
+  state.extra = [...(state.extra ?? []).filter((id) => id !== reference), reference];
+  state.pick = reference;
+}
+
+export const setReferenceMode = (doc: GameAsset, mode: ReferenceMode) =>
+  update(doc.id, (next) => {
+    const state = stepOf(next, "concept");
+    state.referenceMode = mode;
+    if (mode === "as-is" && state.reference) useReferenceAsIs(next, state.reference);
+  });
+
 export const setRigReady = (doc: GameAsset, on: boolean) =>
   update(doc.id, (next) => void (stepOf(next, "concept").rigReady = on));
 
 export const setReference = (doc: GameAsset, asset: string | null) =>
-  update(doc.id, (next) => void (stepOf(next, "concept").reference = asset));
+  update(doc.id, (next) => {
+    const state = stepOf(next, "concept");
+    state.reference = asset;
+    if (asset && (state.referenceMode ?? "pose") === "as-is") useReferenceAsIs(next, asset);
+  });
 
 function jobBody(world: World, step: StepDef, inputs: Record<string, string>): JobCreate {
   const choice = chosen(world, step);
@@ -176,7 +210,11 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>): J
   const reference = step.id === "concept" ? conceptReference(world.doc) : undefined;
   if (reference) {
     body.inputs = { ...inputs, image: reference };
-    body.prompt = referencePrompt(world.doc.prompt || world.doc.idea, rigReady(world.doc) && rigPose(world.doc.kind) !== "");
+    const rigView = rigReady(world.doc) && rigPose(world.doc.kind) !== "";
+    body.prompt =
+      referenceMode(world.doc) === "redraw"
+        ? referencePrompt(world.doc.prompt || world.doc.idea, rigView)
+        : posePrompt(rigView);
   }
   if (step.id === "concept" && rigReady(world.doc) && body.prompt) {
     body.prompt = body.prompt.trim().replace(/\.?$/, ".") + rigPose(world.doc.kind);
@@ -186,6 +224,11 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>): J
 
 /** Start one step now with the current picks. `variations` only for images. */
 export async function runStep(doc: GameAsset, step: StepDef, variations = 1) {
+  if (step.id === "concept" && conceptAsIs(doc)) {
+    // "Use as is": nothing to generate, the picture itself is the concept
+    await update(doc.id, (next) => useReferenceAsIs(next, conceptReference(doc)!));
+    return [];
+  }
   const world = worldOf(doc);
   let inputs: Record<string, string> = {};
   if (Object.keys(step.from).length) {
@@ -223,6 +266,7 @@ export function planRemaining(doc: GameAsset): ChainPlan {
     if (!included(doc, step)) continue;
     if (!chosen(world, step)) return { run, problem: `No model is set up for “${step.title}”.` };
     if (step.userInput && !stepOf(doc, step.id).reference) continue; // waits for the user's pick
+    if (step.id === "concept" && conceptAsIs(doc)) continue; // the user's own picture is the concept
     const pending = stepJobs(world, step).some((job) => PENDING.has(job.status));
     const upstreamRedone = Object.values(sources(world, step)).some((source) => source && redo.has(source.id));
     const current = picked(world, step) && !isStale(world, step);
@@ -239,7 +283,11 @@ export function planRemaining(doc: GameAsset): ChainPlan {
 /** Start the plan as one chain: each job waits for the job before it on the
  * studio itself, so it continues even with this window closed. */
 export async function runRemaining(doc: GameAsset, status?: (text: string) => void) {
-  if (planRemaining(doc).run.some((step) => step.id === "concept")) doc = await ensureDescription(doc, status);
+  if (conceptAsIs(doc) && picked(worldOf(doc), STEPS[0]!)?.asset.id !== conceptReference(doc))
+    doc = await update(doc.id, (next) => useReferenceAsIs(next, conceptReference(doc)!));
+  // a reference picture needs no written description ("pose" has its own prompt; "redraw" uses what is typed)
+  if (planRemaining(doc).run.some((step) => step.id === "concept") && !conceptReference(doc))
+    doc = await ensureDescription(doc, status);
   const plan = planRemaining(doc);
   if (plan.problem) throw new Error(plan.problem);
   const world = worldOf(doc);

@@ -356,6 +356,9 @@ main { flex: 1; }
 .reference-label { font-size: 13px; font-weight: 600; }
 .reference-thumb { width: 56px; height: 56px; border-radius: 6px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; }
 .reference .spacer { flex: 1; }
+.reference-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; width: 100%; font-size: 13px; }
+.reference-modes .check { display: inline-flex; align-items: center; gap: 5px; }
+.reference-hint { flex-basis: 100%; }
 
 /* Model inspection under the 3D preview: view mode, skeleton, bone names */
 .inspect-bar { flex-wrap: wrap; gap: 10px; }

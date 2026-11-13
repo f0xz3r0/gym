@@ -19,6 +19,7 @@ import {
   setIncluded,
   setParams,
   setReference,
+  setReferenceMode,
   setRigReady,
   setServer,
   toast,
@@ -32,8 +33,11 @@ import {
 import {
   candidates,
   chosen,
+  conceptAsIs,
   conceptReference,
   effective,
+  referenceMode,
+  type ReferenceMode,
   rigPose,
   rigReady,
   inputsNow,
@@ -113,12 +117,17 @@ export function StepCard({
         step.id === "concept" && draft !== undefined && draft !== doc.prompt
           ? await update(doc.id, (next) => void (next.prompt = draft))
           : doc;
-      // never draw a concept from the short idea alone: write the detailed description first
-      const ready = step.id === "concept" ? await ensureDescription(latest, (text) => toast(text, "good")) : latest;
+      // never draw a concept from the short idea alone: write the detailed description first (not needed with a
+      // reference picture: "pose" has its own fixed prompt, "as is" generates nothing)
+      const ready =
+        step.id === "concept" && !conceptReference(latest)
+          ? await ensureDescription(latest, (text) => toast(text, "good"))
+          : latest;
       return runStep(ready, step, step.id === "concept" ? variations : 1);
     });
     setStarting(false);
-    if (started) toast(`${step.title}: started. You can keep working; it runs in the background.`, "good");
+    if (started && started.length === 0) toast(`${step.title}: your picture is used as it is.`, "good");
+    else if (started) toast(`${step.title}: started. You can keep working; it runs in the background.`, "good");
   }
 
   return (
@@ -210,7 +219,13 @@ export function StepCard({
           title={state === "running" && step.id !== "concept" ? "Already running" : undefined}
           onClick={() => void run()}
         >
-          {starting ? "Starting…" : list.length || jobs.length ? "Run again" : "Run"}
+          {starting
+            ? "Starting…"
+            : step.id === "concept" && conceptAsIs(doc)
+              ? "Use my picture"
+              : list.length || jobs.length
+                ? "Run again"
+                : "Run"}
         </button>
         {step.id === "concept" && (
           <label class="inline">
@@ -433,6 +448,33 @@ function ConceptPrompt({ doc }: { doc: GameAsset }) {
   );
 }
 
+const REFERENCE_MODES: { id: ReferenceMode; label: string; hint: string }[] = [
+  { id: "as-is", label: "Use as is", hint: "Nothing is generated: this picture is the concept image." },
+  {
+    id: "pose",
+    label: "Pose it for 3D",
+    hint: "Keeps the picture exactly as it is and only changes the pose, camera and background for 3D modelling. No description needed.",
+  },
+  { id: "redraw", label: "Redraw from description", hint: "Redraws the picture following the image description above." },
+];
+
+/** How the concept uses the reference picture. */
+function ReferenceModes({ doc }: { doc: GameAsset }) {
+  const mode = referenceMode(doc);
+  return (
+    <div class="reference-modes" role="radiogroup" aria-label="How to use this picture">
+      {REFERENCE_MODES.map((item) => (
+        <label key={item.id} class="check" title={item.hint}>
+          <input type="radio" name={`reference-mode-${doc.id}`} checked={mode === item.id}
+            onChange={() => void act(() => setReferenceMode(doc, item.id))} />
+          {item.label}
+        </label>
+      ))}
+      <span class="muted small reference-hint">{REFERENCE_MODES.find((item) => item.id === mode)?.hint}</span>
+    </div>
+  );
+}
+
 /** Optional picture the concept is drawn from (Qwen-Image edit: picture + description). */
 function ReferencePicture({ doc }: { doc: GameAsset }) {
   const world = worldOf(doc);
@@ -443,12 +485,12 @@ function ReferencePicture({ doc }: { doc: GameAsset }) {
     <div class="reference">
       <span class="reference-label">Reference picture</span>
       {id ? (
-        <span class="thumb reference-thumb" title="The concept is drawn from this picture">
+        <span class="thumb reference-thumb" title="Your reference picture">
           {asset ? <Thumb asset={asset} /> : "…"}
         </span>
       ) : (
         <span class="muted small">
-          Optional: a photo, sketch or drawing. The concept image is then drawn from it, following the description.
+          Optional: your own photo, sketch or drawing. Then choose: use it as is, pose it for 3D, or redraw it.
         </span>
       )}
       <span class="spacer" />
@@ -460,6 +502,7 @@ function ReferencePicture({ doc }: { doc: GameAsset }) {
           Remove
         </button>
       )}
+      {id && <ReferenceModes doc={doc} />}
       {choosing && (
         <Picker
           kind="image"

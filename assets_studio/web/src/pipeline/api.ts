@@ -17,6 +17,10 @@ export interface StepState {
   params?: Record<string, unknown>;
   /** Concept step only: a picture (asset id) to draw the concept from. */
   reference?: string | null;
+  /** Concept step only, with a reference: "as-is" uses the picture itself as the concept (nothing generated),
+   * "pose" keeps the picture and only re-poses it for 3D modelling (fixed prompt, no description needed),
+   * "redraw" redraws it following the description. Unset = "pose". */
+  referenceMode?: "as-is" | "pose" | "redraw";
   /** Concept step only: ask for a pose the auto-rig handles (T-pose, empty hands, smooth silhouette). */
   rigReady?: boolean;
 }
