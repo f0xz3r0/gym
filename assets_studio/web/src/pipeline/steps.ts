@@ -12,6 +12,7 @@ export type StepId =
   | "cleanup"
   | "gamemesh"
   | "paint"
+  | "repair"
   | "normals"
   | "rig"
   | "animrig"
@@ -47,7 +48,7 @@ export interface StepDef {
 
 const always = () => true;
 const never = () => false;
-const MESH_CHAIN: StepId[] = ["normals", "paint", "gamemesh", "cleanup", "detail", "shape"];
+const MESH_CHAIN: StepId[] = ["normals", "repair", "paint", "gamemesh", "cleanup", "detail", "shape"];
 
 export const STEPS: StepDef[] = [
   {
@@ -140,6 +141,21 @@ export const STEPS: StepDef[] = [
     heavy: true,
   },
   {
+    id: "repair",
+    title: "Repair texture",
+    blurb:
+      "Opens Blender with the painted model and StableGen: fix a blotch, a seam or a wrong colour, press Bake " +
+      "Textures, then \"Send back to Studio\" in the Studio tab. Closing Blender without sending changes nothing.",
+    task: "3d-texture-repair",
+    servers: ["texture-repair"],
+    optional: true,
+    defaultOn: never,
+    produces: "mesh",
+    from: { mesh: ["paint"] },
+    typical: "as long as you work in Blender (it opens in about 20 s)",
+    heavy: true,
+  },
+  {
     id: "normals",
     title: "Bake fine detail",
     blurb: "Copies small surface detail from the detailed mesh into a normal map on the game mesh.",
@@ -148,7 +164,7 @@ export const STEPS: StepDef[] = [
     optional: true,
     defaultOn: never,
     produces: "mesh",
-    from: { high: ["cleanup", "detail", "shape"], low: ["paint"] },
+    from: { high: ["cleanup", "detail", "shape"], low: ["repair", "paint"] },
     typical: "about 10 s",
   },
   {
@@ -176,7 +192,7 @@ export const STEPS: StepDef[] = [
     optional: true,
     defaultOn: (kind) => kind === "creature" || kind === "character",
     produces: "mesh",
-    from: { mesh: ["normals", "paint", "gamemesh", "cleanup", "detail", "shape"] },
+    from: { mesh: ["normals", "repair", "paint", "gamemesh", "cleanup", "detail", "shape"] },
     paramsFrom: (doc) => ({ creature: doc.name }),
     typical: "about 3 min",
     heavy: true,
