@@ -225,7 +225,13 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>, ex
 /** Start one step now with the current picks. `variations` only for images. */
 /** Start one step now with the current picks. `variations` only for images; `extra` overrides settings for this run
  * only (the motion step's "Animate this video" sends the reviewed clip). */
-export async function runStep(doc: GameAsset, step: StepDef, variations = 1, extra: Record<string, unknown> = {}) {
+export async function runStep(
+  doc: GameAsset,
+  step: StepDef,
+  variations = 1,
+  extra: Record<string, unknown> = {},
+  inputsOverride?: Record<string, string>,
+) {
   if (step.id === "concept" && conceptAsIs(doc)) {
     // "Use as is": nothing to generate, the picture itself is the concept
     await update(doc.id, (next) => useReferenceAsIs(next, conceptReference(doc)!));
@@ -239,6 +245,8 @@ export async function runStep(doc: GameAsset, step: StepDef, variations = 1, ext
       throw new Error(now.missing ? `Finish “${now.missing.title}” first.` : "Turn on an earlier step first.");
     inputs = now.inputs;
   }
+  // a re-run of one result (the Tune panel) uses that result's own inputs, whatever is picked now
+  if (inputsOverride) inputs = { ...inputs, ...inputsOverride };
   const body = jobBody(world, step, inputs, extra);
   const max = chosen(world, step)?.task.max_count ?? 1;
   const created: Job[] = [];

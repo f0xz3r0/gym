@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { assetById } from "../state/store";
 import type { GameAsset } from "./api";
 import { GodotCard } from "./GodotCard";
-import { facts, Preview } from "./Preview";
+import { facts, MotionCheck, Preview, type Finding } from "./Preview";
 import { StepCard, type Selection } from "./StepCard";
 import {
   act,
@@ -16,6 +16,7 @@ import {
   loadDoc,
   pick,
   planRemaining,
+  runStep,
   runRemaining,
   toast,
   update,
@@ -91,6 +92,31 @@ function Loaded({ doc }: { doc: GameAsset }) {
   const shownAsset = shown ? assetById(shown.asset) : undefined;
   const shownStep = shown ? stepById(shown.step) : undefined;
   const shownIsPick = shownStep && shownAsset && picked(world, shownStep)?.asset.id === shownAsset.id;
+  // the Tune panel refits the shown Motion fit result's own take (its job's rig and video) with the ticked fixes
+  const shownJob = shownStep?.id === "motion" && shownAsset
+    ? results(world, shownStep).find((result) => result.asset.id === shownAsset.id)?.job
+    : undefined;
+  // the motion check of the shown result, in its own column beside the preview (not while a step works)
+  const shownMeta = (shownAsset?.meta ?? {}) as Record<string, unknown>;
+  const checkMeta = !working && Array.isArray(shownMeta.motion_check)
+    ? {
+        findings: shownMeta.motion_check as Finding[],
+        sheet: typeof shownMeta.contact_sheet_asset === "string" ? shownMeta.contact_sheet_asset : undefined,
+        tuned: Array.isArray(shownMeta.tune) ? (shownMeta.tune as string[]) : undefined,
+      }
+    : undefined;
+  const tuneHandler = shownJob && shownStep
+    ? (fixes: string[]) =>
+        act(async () => {
+          const created = await runStep(doc, shownStep, 1, { tune: fixes.join(",") }, {
+            rig: shownJob.inputs.rig as string,
+            video: shownJob.inputs.video as string,
+          });
+          setSelection(null);
+          toast("Refitting with the fixes: the new result appears in Motion fit.", "good");
+          return created;
+        })
+    : undefined;
 
   const plan = planRemaining(doc);
   const rigStep = stepById("rig");
@@ -153,7 +179,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
         </a>
       </nav>
 
-      <div class="asset-body">
+      <div class={`asset-body${checkMeta ? " with-check" : ""}`}>
         <div class="steps">
           {steps.map((step, index) => (
             <StepCard
@@ -215,6 +241,21 @@ function Loaded({ doc }: { doc: GameAsset }) {
             </div>
           )}
         </aside>
+        {checkMeta && (
+          <aside class="check-pane" aria-label="Motion check">
+            <header class="check-head">
+              <b>Motion check</b>
+              <span class="muted small">{shownStep?.title}</span>
+            </header>
+            <MotionCheck
+              key={shownAsset?.id}
+              findings={checkMeta.findings}
+              sheet={checkMeta.sheet}
+              tuned={checkMeta.tuned}
+              onTune={tuneHandler}
+            />
+          </aside>
+        )}
       </div>
 
       {confirmRun && (

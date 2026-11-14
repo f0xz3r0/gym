@@ -165,7 +165,7 @@ main { flex: 1; }
 .empty p { max-width: 520px; margin: 10px auto 20px; color: var(--muted); }
 
 /* ---------- asset page */
-.asset-page { max-width: 1400px; margin: 0 auto; padding: 20px 24px 80px; }
+.asset-page { max-width: 1400px; transition: max-width .2s; margin: 0 auto; padding: 20px 24px 80px; }
 .asset-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .back { color: var(--muted); text-decoration: none; font-weight: 550; }
 .back:hover { color: var(--text); }
@@ -542,3 +542,43 @@ main { flex: 1; }
 .frames-video video { width: 100%; max-height: 70vh; }
 .frames-empty { min-height: 300px; border: 1px dashed var(--border); border-radius: var(--radius); }
 .frames-page .page-head { display: block; }
+
+/* motion check tab */
+.motion-check { overflow: auto; padding: 0 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+.check-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.check-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; font-size: 13px;
+  background: var(--surface-2); border-left: 3px solid var(--border); }
+.check-list li span { color: var(--muted); }
+.check-list .check-bad { border-left-color: var(--bad); }
+.check-list .check-bad b { color: var(--bad); }
+.check-list .check-warn { border-left-color: var(--warn); }
+.check-list .check-warn b { color: var(--warn); }
+.check-list .check-info b { color: var(--good); }
+.check-sheet { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.check-sheet img { width: 100%; border-radius: 8px; display: block; }
+.check-sheet figcaption { font-size: 12px; color: var(--muted); }
+.check-fix { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.check-actions { display: flex; flex-direction: column; gap: 6px; }
+.check-tuned { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px;
+  background: var(--accent-soft); color: var(--text); }
+.check-tuned b { color: var(--accent); }
+.check-nofix { font-size: 12.5px; color: var(--muted); font-style: normal; margin-top: 2px; }
+.check-tuned .check-fix { margin-top: 0; }
+
+/* the motion check: its own column beside the preview */
+.asset-page:has(.asset-body.with-check) { max-width: 1840px; }
+.asset-body.with-check { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.85fr) minmax(300px, 0.6fr); }
+.check-pane { position: sticky; top: 120px; max-height: calc(100vh - 140px); display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.check-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }
+.check-pane .motion-check { flex: 1; min-height: 0; }
+@media (max-width: 1400px) {
+  .asset-body.with-check { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.85fr); }
+  .asset-body.with-check .check-pane { grid-column: 2; position: static; max-height: none; }
+}
+@media (max-width: 960px) {
+  .asset-body.with-check { grid-template-columns: 1fr; }
+  .asset-body.with-check .check-pane { grid-column: auto; }
+}
+.check-tuned .check-fix, .check-list .check-fix { min-height: 0; padding: 0; line-height: 1.35; }
+.check-fix input[type="checkbox"] { min-height: 0; height: 14px; width: 14px; margin: 0; flex: none; }

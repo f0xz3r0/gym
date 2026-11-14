@@ -142,6 +142,112 @@ function ModelView({ asset }: { asset: Asset }) {
 
 /** An animation from the AI-video pipeline: the model, its review film (video | fit | overlay, 3/4) and, from v1.1,
  * the auto-rig's poses sheet (the rig bent in test poses: tearing or a limb dragging the body means bad weights). */
+export interface Finding { id: string; level: "info" | "warn" | "bad"; title: string; detail: string; fix: string | null; bones?: string[] }
+
+/** What each Tune fix does (tools/v2r2.py TUNE). */
+const FIXES: Record<string, string> = {
+  limit_twist: "Hold the roll still (twist up to 3°)",
+  widen_range: "Let these joints bend further (up to 130°)",
+  smooth: "Smooth the whole motion (fast swings may lose a little reach)",
+  smooth_parts: "Smooth these parts only",
+  floor: "Press the feet onto the floor",
+};
+
+export type TuneHandler = (fixes: string[]) => Promise<unknown>;
+
+/** What to do about a finding no refit can fix. */
+const NO_FIX: Record<string, string> = {
+  seam: "A refit cannot change how well the stride repeats: make another take (Motion video, Run again) and fit that.",
+  sideways: "The cameras cannot see it: remake the rig with Camera views side,top.",
+};
+
+/** The motion check (tools/v2r_motion_check.py): findings in plain words, and the contact sheet (side, top and
+ * three-quarter at five moments of the loop). */
+export function MotionCheck({ findings, sheet, tuned, onTune }: {
+  findings: Finding[];
+  sheet: string | undefined;
+  tuned?: string[] | undefined;
+  onTune?: TuneHandler | undefined;
+}) {
+  const order = { bad: 0, warn: 1, info: 2 } as const;
+  // a tuned result starts with its own fixes ticked: a refit starts again from the take's plain fit, so what is not
+  // ticked is not applied, and unticked fixes would otherwise be dropped silently
+  const [ticked, setTicked] = useState<Set<string>>(new Set(tuned ?? []));
+  const [busy, setBusy] = useState(false);
+  const sorted = [...findings].sort((a, b) => order[a.level] - order[b.level]);
+  // every finding with a fix gets its checkbox; findings that share a fix (a snap and trembling: "smooth") share it
+  const offered = new Set<string>();
+  // the same fixes as this result has would make the same result again
+  const same = (tuned?.length ?? 0) > 0 && ticked.size === tuned!.length && tuned!.every((f) => ticked.has(f));
+  const toggle = (fix: string) =>
+    setTicked((now) => {
+      const next = new Set(now);
+      if (next.has(fix)) next.delete(fix);
+      else next.add(fix);
+      return next;
+    });
+  return (
+    <div class="motion-check">
+      {tuned && tuned.length > 0 && (
+        <div class="check-tuned">
+          <b>This result is tuned with:</b>
+          {onTune
+            ? tuned.filter((f) => FIXES[f]).map((f) => (
+                <label key={f} class="check-fix">
+                  <input type="checkbox" checked={ticked.has(f)} onChange={() => toggle(f)} />
+                  {FIXES[f]}
+                </label>
+              ))
+            : <span>{tuned.map((f) => FIXES[f] ?? f).join(" · ")}</span>}
+          {onTune && <span class="muted small">Untick one to drop it at the next refit.</span>}
+        </div>
+      )}
+      <ul class="check-list">
+        {sorted.map((f) => {
+          const fix = f.fix && FIXES[f.fix] && onTune ? f.fix : null;
+          const shared = fix !== null && offered.has(fix);
+          if (fix) offered.add(fix);
+          return (
+            <li key={f.id} class={`check-${f.level}`}>
+              <b>{f.level === "bad" ? "●" : f.level === "warn" ? "▲" : "✓"} {f.title}</b>
+              <span>{f.detail}</span>
+              {fix && (
+                <label class="check-fix">
+                  <input type="checkbox" checked={ticked.has(fix)} onChange={() => toggle(fix)} />
+                  {FIXES[fix]}
+                  {shared && <span class="muted"> (same fix as above)</span>}
+                  {tuned?.includes(fix) && <span class="muted"> (applied, still here)</span>}
+                </label>
+              )}
+              {!fix && f.level !== "info" && NO_FIX[f.id] && <em class="check-nofix">{NO_FIX[f.id]}</em>}
+            </li>
+          );
+        })}
+      </ul>
+      {onTune && (offered.size > 0 || (tuned?.length ?? 0) > 0) && (
+        <div class="check-actions">
+          <button class="button primary" disabled={busy || ticked.size === 0 || same}
+            onClick={() => {
+              setBusy(true);
+              void onTune([...ticked]).finally(() => setBusy(false));
+            }}>
+            {same
+              ? "These fixes are already applied"
+              : ticked.size ? `Refit with ${ticked.size} fix${ticked.size > 1 ? "es" : ""}` : "Tick the fixes you want"}
+          </button>
+          <span class="muted small">Same video, about a minute. A new result; this one stays. Anything not ticked is kept as it is.</span>
+        </div>
+      )}
+      {sheet && (
+        <figure class="check-sheet">
+          <img src={`/api/assets/${sheet}/file`} alt="The loop from the side, from above and at three-quarter, at five moments" />
+          <figcaption>Rows: side · from above · three-quarter. Columns: five moments across the loop.</figcaption>
+        </figure>
+      )}
+    </div>
+  );
+}
+
 function WithReview({ asset, review, poses, skeleton, start }: { asset: Asset; review: string | undefined; poses: string | undefined; skeleton: string | undefined; start: string | undefined }) {
   const [tab, setTab] = useState<"model" | "film" | "poses" | "skeleton" | "start">("model");
   useEffect(() => setTab("model"), [asset.id]);
