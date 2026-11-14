@@ -1,6 +1,6 @@
 // One game asset: every step from idea to Godot on one page, with a large
 // preview beside it. Nothing here navigates away.
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { assetById } from "../state/store";
 import type { GameAsset } from "./api";
@@ -21,8 +21,9 @@ import {
   update,
   worldOf,
 } from "./state";
-import { finalResult, included, KINDS, picked, status, stepById, STEPS } from "./steps";
+import { finalResult, included, KINDS, PENDING, picked, results, status, stepById, stepJobs, STEPS } from "./steps";
 import { ConfirmButton, Modal } from "./ui";
+import { WorkingPreview } from "./Working";
 
 export function AssetPage({ id }: { id: string }) {
   const doc = docs.value.get(id);
@@ -63,6 +64,30 @@ function Loaded({ doc }: { doc: GameAsset }) {
         return null;
       })();
   const shown = selection ?? fallback;
+
+  // A step at work takes the preview (an animation with its progress) until you click a result; a newly started
+  // run takes it back.
+  const active = STEPS.flatMap((step) => {
+    if (!included(doc, step)) return [];
+    const job = stepJobs(world, step).find((item) => PENDING.has(item.status));
+    return job ? [{ step, job }] : [];
+  });
+  const working = selection ? undefined : (active.find((item) => item.job.status === "running") ?? active[0]);
+  // the model the preview shows: a finished animation of this step made from the same rig as the running job (it
+  // plays as it is), else the rig or mesh the job works on (the hologram with an idle). An animation from an older
+  // rig of the same creature is not shown: it is not what this run makes.
+  const workingRig = working?.job.inputs.rig;
+  const workingModel = working
+    ? ((["motion", "textmotion", "mocap", "animate"].includes(working.step.id) && workingRig
+        ? results(world, working.step).find((result) => result.job?.inputs.rig === workingRig)?.asset.id
+        : undefined) ?? workingRig ?? working.job.inputs.mesh)
+    : undefined;
+  const seenJobs = useRef<Set<string>>(new Set(active.map((item) => item.job.id)));
+  useEffect(() => {
+    const fresh = active.some((item) => !seenJobs.current.has(item.job.id));
+    active.forEach((item) => seenJobs.current.add(item.job.id));
+    if (fresh) setSelection(null);
+  }, [active.map((item) => item.job.id).join(",")]);
   const shownAsset = shown ? assetById(shown.asset) : undefined;
   const shownStep = shown ? stepById(shown.step) : undefined;
   const shownIsPick = shownStep && shownAsset && picked(world, shownStep)?.asset.id === shownAsset.id;
@@ -157,9 +182,13 @@ function Loaded({ doc }: { doc: GameAsset }) {
 
         <aside class="preview-pane">
           <div class="preview-box">
-            <Preview asset={shownAsset} />
+            {working ? (
+              <WorkingPreview step={working.step} job={working.job} model={workingModel} />
+            ) : (
+              <Preview asset={shownAsset} />
+            )}
           </div>
-          {shownAsset && shownStep && (
+          {!working && shownAsset && shownStep && (
             <div class="preview-info">
               <div class="row">
                 <b>{shownStep.title}</b>

@@ -240,6 +240,15 @@ main { flex: 1; }
 .chip-running { background: var(--accent-soft); color: var(--accent); }
 .chip-failed { background: var(--bad-soft); color: var(--bad); }
 .chip-stale, .chip-nomodel { background: var(--warn-soft); color: var(--warn); }
+.chip-review { background: var(--accent-soft); color: var(--accent); }
+.stepper-item.s-review .stepper-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.review-panel { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px; border-radius: 10px;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.review-panel .thumb { width: 96px; height: 72px; border-radius: 8px; overflow: hidden; flex: none; position: relative; }
+.review-panel .thumb::after { content: "▶"; position: absolute; inset: 0; display: grid; place-items: center; color: white;
+  font-size: 22px; text-shadow: 0 1px 4px rgb(0 0 0 / 0.6); }
+.review-panel .review-text { flex: 1; min-width: 180px; font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; }
+.review-panel .review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip-ready { background: var(--accent-soft); color: var(--accent); }
 .job-chip-succeeded { background: var(--good-soft); color: var(--good); }
 .job-chip-failed { background: var(--bad-soft); color: var(--bad); }
@@ -263,9 +272,152 @@ main { flex: 1; }
 
 .job-line { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border-radius: 9px; padding: 6px 6px 6px 12px; }
 .progress-text { flex: 1; font-size: 13.5px; font-weight: 550; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.progress-text .bar { width: 46px; height: 5px; border-radius: 3px; margin-right: 6px; background: linear-gradient(90deg, var(--accent) 0 40%, var(--border) 40%); background-size: 200% 100%; animation: slide 1.3s linear infinite; }
-.progress-text .bar.waiting { background: var(--border); animation: breathe 1.6s ease-in-out infinite; }
 @keyframes slide { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ---- progress bar (estimated from earlier runs of the same model and task) ---- */
+.pbar { position: relative; display: inline-block; width: 120px; height: 8px; border-radius: 99px; overflow: hidden;
+  background: var(--border); flex: none; margin-right: 6px; }
+.pbar-small { width: 46px; height: 5px; margin-right: 2px; }
+.pbar-fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 65%, var(--good)));
+  transition: width 1s linear; overflow: hidden; }
+.pbar-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  transform: translateX(-100%); animation: sheen 1.8s ease-in-out infinite; }
+@keyframes sheen { to { transform: translateX(100%); } }
+.pbar.is-over .pbar-fill { animation: breathe 1.4s ease-in-out infinite; }
+.pbar.is-indeterminate .pbar-fill { width: 35%; animation: sweep 1.4s ease-in-out infinite; }
+@keyframes sweep { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
+.pbar.is-waiting { background: repeating-linear-gradient(-45deg, var(--border) 0 6px, var(--surface-2, var(--bg)) 6px 12px);
+  background-size: 17px 17px; animation: stripes 0.9s linear infinite; }
+@keyframes stripes { to { background-position: 17px 0; } }
+.progress-text b { font-weight: 650; font-variant-numeric: tabular-nums; }
+.progress-text .muted { font-variant-numeric: tabular-nums; }
+.chip-progress { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+
+/* ---- the preview pane while a step works ---- */
+.working { grid-area: 1 / 1; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: 18px; animation: rise 0.4s ease;
+  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--accent) 12%, var(--surface)) 0%, var(--surface) 70%); }
+.working-stage { width: min(78%, 300px); aspect-ratio: 5 / 4; }
+.working .scene { width: 100%; height: 100%; overflow: visible; }
+.working-info { width: min(86%, 340px); display: flex; flex-direction: column; align-items: center; gap: 7px; text-align: center; }
+.working-info .pbar { width: 100%; height: 10px; margin: 2px 0 0; }
+.working-title { font-weight: 700; font-size: 15px; }
+.working-caption { font-size: 14px; color: var(--accent); font-weight: 600; animation: rise 0.5s ease; }
+.working-meta { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.working.is-waiting .working-stage { opacity: 0.55; filter: saturate(0.4); }
+
+/* image: strokes draw in, blobs bloom, a sheen passes, the brush travels */
+.working-image .canvas { fill: var(--surface-2, var(--bg)); stroke: var(--border); stroke-width: 2; }
+.working-image .stroke { fill: none; stroke-width: 9; stroke-linecap: round; stroke-dasharray: 260; stroke-dashoffset: 260;
+  animation: draw 4.5s ease-in-out infinite; }
+.working-image .s1 { stroke: var(--accent); }
+.working-image .s2 { stroke: var(--warn); animation-delay: 0.8s; }
+.working-image .s3 { stroke: var(--good); animation-delay: 1.6s; }
+@keyframes draw { 0% { stroke-dashoffset: 260; opacity: 1; } 55% { stroke-dashoffset: 0; } 85% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+.working-image .blob { opacity: 0; transform-box: fill-box; transform-origin: center; animation: bloom 4.5s ease-out infinite; }
+.working-image .b1 { fill: color-mix(in srgb, var(--bad) 55%, transparent); animation-delay: 1.2s; }
+.working-image .b2 { fill: color-mix(in srgb, var(--accent) 45%, transparent); animation-delay: 2.2s; }
+@keyframes bloom { 0% { opacity: 0; transform: scale(0.2); } 40% { opacity: 0.9; transform: scale(1); } 90% { opacity: 0.9; } 100% { opacity: 0; } }
+.working-image .sheen { animation: pass 4.5s ease-in-out infinite; }
+@keyframes pass { from { transform: translateX(0); } to { transform: translateX(340px); } }
+.working-image .brush { fill: var(--text); offset-path: path("M30 120 C 60 60, 90 60, 120 110 S 170 140, 175 70"); animation: travel 4.5s ease-in-out infinite; }
+@keyframes travel { 0% { offset-distance: 0%; } 55%, 100% { offset-distance: 100%; } }
+
+/* mesh: a wireframe globe turns, points settle onto it */
+.working-mesh .rim, .working-mesh .lat, .working-mesh .lon { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+.working-mesh .rim { stroke-width: 2; }
+.working-mesh .lat { opacity: 0.55; }
+.working-mesh .lon { transform-box: fill-box; transform-origin: center; animation: turn 3s linear infinite; }
+@keyframes turn { 0% { transform: scaleX(1); } 50% { transform: scaleX(0); } 100% { transform: scaleX(-1); } }
+.working-mesh .globe { animation: tilt 6s ease-in-out infinite; transform-origin: center; }
+@keyframes tilt { 50% { transform: rotate(8deg); } }
+.working-mesh .vert { fill: var(--good); animation: settle 3.5s ease-in-out infinite; }
+@keyframes settle { 0% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 45% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+
+/* paint: colour bands sweep over a shaded ball */
+.working-paint .ball { fill: var(--border); }
+.working-paint .rim { fill: none; stroke: var(--text); stroke-opacity: 0.25; stroke-width: 1.5; }
+.working-paint .bands { animation: bands 3.2s linear infinite; }
+@keyframes bands { from { transform: translateX(0); } to { transform: translateX(240px); } }
+.working-paint .band { opacity: 0.85; }
+.working-paint .c1 { fill: var(--accent); }
+.working-paint .c2 { fill: var(--good); }
+.working-paint .c3 { fill: var(--warn); }
+.working-paint .c4 { fill: var(--bad); }
+
+/* rig: a body outline, joints pop in, bones draw */
+.working-rig .body { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--border); stroke-width: 2; stroke-dasharray: 5 6; }
+.working-rig .bone { stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 80; stroke-dashoffset: 80;
+  animation: bone 4s ease-in-out infinite; }
+@keyframes bone { 0% { stroke-dashoffset: 80; } 40%, 85% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+.working-rig .joint { fill: var(--surface); stroke: var(--good); stroke-width: 2.5; transform-box: fill-box; transform-origin: center;
+  animation: pop 4s ease-out infinite; }
+@keyframes pop { 0% { transform: scale(0); } 18% { transform: scale(1.4); } 28%, 85% { transform: scale(1); opacity: 1; } 100% { opacity: 0; } }
+
+/* rig and motion: the creature as a 3D hologram */
+.working.has-holo { background: #03060b; color: #cfefff; }
+.working.has-holo .working-stage { width: 100%; aspect-ratio: 4 / 3; }
+.working.has-holo .working-title { color: #e6f7ff; }
+.working.has-holo .working-caption { color: #35e8ff; }
+.working.has-holo .working-meta { color: #7f9bb0; }
+.working.has-holo .pbar { background: #0f2233; }
+.holo { position: relative; width: 100%; height: 100%; border-radius: 10px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgb(53 232 255 / 0.25); }
+.holo-canvas, .holo-canvas canvas { width: 100%; height: 100%; display: block; }
+.holo-hud { position: absolute; inset: 8px 10px auto; display: flex; justify-content: space-between;
+  font: 600 10.5px ui-monospace, Consolas, monospace; letter-spacing: 0.12em; color: rgb(53 232 255 / 0.85);
+  text-shadow: 0 0 6px rgb(53 232 255 / 0.6); pointer-events: none; }
+
+/* motion: mocap HUD - its own dark screen, neon walker with trails, falling code, scan line */
+.working-motion { --neon: #3df5ff; --neon-2: #39ff88; --neon-hot: #ff3df0; }
+.working-motion .working-stage { width: min(92%, 380px); }
+.working-motion .screen { fill: #05080d; stroke: color-mix(in srgb, var(--neon) 45%, transparent); stroke-width: 1; }
+.working-motion .drop { font: 700 8px ui-monospace, Consolas, monospace; fill: var(--neon-2); opacity: 0.55;
+  animation: rain 3s linear infinite; }
+.working-motion .drop.bright { opacity: 0.85; }
+.working-motion .drop .head { fill: #e6fff0; }
+@keyframes rain { from { transform: translateY(-40px); } to { transform: translateY(200px); } }
+.working-motion .grid line { stroke: var(--neon); stroke-width: 0.6; opacity: 0.35; }
+.working-motion .grid .horizon { opacity: 0.8; stroke-width: 0.9; }
+.working-motion .grid-rows { animation: rows 0.9s linear infinite; }
+@keyframes rows { from { transform: translateY(0); } to { transform: translateY(5px); } }
+.working-motion .walker { animation: bob 0.9s ease-in-out infinite; animation-delay: var(--lag, 0s); }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+.working-motion .plate { fill: color-mix(in srgb, var(--neon) 18%, #05080d); stroke: var(--neon); stroke-width: 1.3; stroke-linejoin: round; }
+.working-motion .plate.back { fill: #070d14; stroke: color-mix(in srgb, var(--neon) 55%, transparent); }
+.working-motion .plate.core { fill: color-mix(in srgb, var(--neon) 24%, #05080d); }
+.working-motion .plate.head { fill: color-mix(in srgb, var(--neon) 20%, #05080d); }
+.working-motion .seam { fill: none; stroke: var(--neon); stroke-width: 0.6; opacity: 0.6; }
+.working-motion .visor { fill: var(--neon-hot); animation: visor 2.4s ease-in-out infinite; }
+@keyframes visor { 50% { opacity: 0.45; } }
+.working-motion .joint { fill: #05080d; stroke: var(--neon-2); stroke-width: 1.4; }
+.working-motion .core-light { fill: var(--neon-hot); stroke: none; animation: visor 1.2s ease-in-out infinite; }
+.working-motion .ghost .plate, .working-motion .ghost .plate.back { fill: none; stroke: var(--neon-hot); }
+.working-motion .ghost:nth-child(1) { opacity: 0.18; }
+.working-motion .ghost:nth-child(2) { opacity: 0.35; }
+.working-motion .ghost .joint, .working-motion .ghost .visor, .working-motion .ghost .seam { display: none; }
+.working-motion .leg { transform-origin: 0 6px; }
+.working-motion .arm { transform-origin: 0 -30px; }
+.working-motion .a-front, .working-motion .l-back { animation: swing 0.9s ease-in-out infinite alternate; animation-delay: var(--lag, 0s); }
+.working-motion .a-back, .working-motion .l-front { animation: swing 0.9s ease-in-out infinite alternate-reverse; animation-delay: var(--lag, 0s); }
+@keyframes swing { from { transform: rotate(26deg); } to { transform: rotate(-26deg); } }
+.working-motion .shin { transform-origin: 0 34px; animation: knee 0.9s ease-in-out infinite alternate; animation-delay: var(--lag, 0s); }
+.working-motion .l-back .shin { animation-direction: alternate-reverse; }
+@keyframes knee { from { transform: rotate(0deg); } to { transform: rotate(-34deg); } }
+.working-motion .brackets path { fill: none; stroke: var(--neon-2); stroke-width: 1.4; animation: lock 1.8s ease-in-out infinite; transform-origin: 0 0; }
+@keyframes lock { 0%, 100% { transform: scale(1.06); opacity: 0.6; } 50% { transform: scale(0.96); opacity: 1; } }
+.working-motion .scanline { fill: color-mix(in srgb, var(--neon) 55%, transparent); filter: blur(1.5px); animation: scan 2.6s linear infinite; }
+@keyframes scan { from { transform: translateY(-12px); } to { transform: translateY(160px); } }
+.working-motion .hud text { font: 700 6.5px ui-monospace, Consolas, monospace; fill: var(--neon); letter-spacing: 0.08em; }
+.working-motion .rec { fill: var(--neon-hot); animation: visor 1s steps(2) infinite; }
+.working-motion.is-waiting .working-stage { opacity: 0.7; filter: saturate(0.5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .working *, .pbar *, .pbar { animation-duration: 6s !important; animation-iteration-count: 1 !important; }
+  .working-image .stroke, .working-rig .bone { stroke-dashoffset: 0; }
+  .working-mesh .lon, .working-paint .bands, .working-motion * { animation: none !important; }
+}
 
 .note { font-size: 14px; padding: 10px 12px; border-radius: 9px; background: var(--surface-2); }
 .note.warn { background: var(--warn-soft); color: var(--warn); }

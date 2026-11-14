@@ -7,6 +7,7 @@ import { assetById, jobs, mergeJob, putAsset, servers } from "../state/store";
 import { Conflict, pipelineApi, type GameAsset, type Kind, type StepState } from "./api";
 import {
   chosen,
+  awaitingReview,
   conceptAsIs,
   conceptReference,
   referenceMode,
@@ -190,14 +191,14 @@ export const setReference = (doc: GameAsset, asset: string | null) =>
     if (asset && (state.referenceMode ?? "pose") === "as-is") useReferenceAsIs(next, asset);
   });
 
-function jobBody(world: World, step: StepDef, inputs: Record<string, string>): JobCreate {
+function jobBody(world: World, step: StepDef, inputs: Record<string, string>, extra: Record<string, unknown> = {}): JobCreate {
   const choice = chosen(world, step);
   if (!choice) throw new Error(`No model is set up for “${step.title}”.`);
   const body: JobCreate = {
     server: choice.server.id,
     task: choice.task.task,
     count: 1,
-    params: paramsFor(world, step, choice.task),
+    params: { ...paramsFor(world, step, choice.task), ...extra },
     inputs,
     dependencies: {},
   };
@@ -223,7 +224,9 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>): J
 }
 
 /** Start one step now with the current picks. `variations` only for images. */
-export async function runStep(doc: GameAsset, step: StepDef, variations = 1) {
+/** Start one step now with the current picks. `variations` only for images; `extra` overrides settings for this run
+ * only (the motion step's "Animate this video" sends the reviewed clip). */
+export async function runStep(doc: GameAsset, step: StepDef, variations = 1, extra: Record<string, unknown> = {}) {
   if (step.id === "concept" && conceptAsIs(doc)) {
     // "Use as is": nothing to generate, the picture itself is the concept
     await update(doc.id, (next) => useReferenceAsIs(next, conceptReference(doc)!));
@@ -237,7 +240,7 @@ export async function runStep(doc: GameAsset, step: StepDef, variations = 1) {
       throw new Error(now.missing ? `Finish “${now.missing.title}” first.` : "Turn on an earlier step first.");
     inputs = now.inputs;
   }
-  const body = jobBody(world, step, inputs);
+  const body = jobBody(world, step, inputs, extra);
   const max = chosen(world, step)?.task.max_count ?? 1;
   const created: Job[] = [];
   if (variations > 1 && max >= variations) created.push(await api.createJob({ ...body, count: variations }));
@@ -267,6 +270,7 @@ export function planRemaining(doc: GameAsset): ChainPlan {
     if (!chosen(world, step)) return { run, problem: `No model is set up for “${step.title}”.` };
     if (step.userInput && !stepOf(doc, step.id).reference) continue; // waits for the user's pick
     if (step.id === "concept" && conceptAsIs(doc)) continue; // the user's own picture is the concept
+    if (awaitingReview(world, step)) break; // a video waits for your review: the chain stops here
     const pending = stepJobs(world, step).some((job) => PENDING.has(job.status));
     const upstreamRedone = Object.values(sources(world, step)).some((source) => source && redo.has(source.id));
     const current = picked(world, step) && !isStale(world, step);

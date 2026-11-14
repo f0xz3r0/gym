@@ -33,6 +33,7 @@ import {
 import {
   candidates,
   chosen,
+  awaitingReview,
   conceptAsIs,
   conceptReference,
   effective,
@@ -50,7 +51,7 @@ import {
   stepJobs,
   type StepDef,
 } from "./steps";
-import { Dot, JobProgress, StatusChip } from "./ui";
+import { Dot, JobProgress, RunningChip, StatusChip } from "./ui";
 
 /** Descriptions typed but maybe not saved yet, by game asset. */
 const promptDrafts = new Map<string, string>();
@@ -136,7 +137,12 @@ export function StepCard({
         <span class="step-number">{state === "done" ? "✓" : number}</span>
         <div class="step-title">
           <h3>
-            {step.title} <StatusChip status={state} />
+            {step.title}{" "}
+            {state === "running" && running[0] ? (
+              <RunningChip job={running.find((job) => job.status === "running") ?? running[0]} typical={step.typical} />
+            ) : (
+              <StatusChip status={state} />
+            )}
           </h3>
           <p class="muted">{step.blurb}</p>
         </div>
@@ -176,6 +182,8 @@ export function StepCard({
           })}
         </div>
       )}
+
+      {state === "review" && <ReviewPanel doc={doc} step={step} selected={selected} onSelect={onSelect} />}
 
       {running.map((job) => (
         <div class="job-line" key={job.id}>
@@ -444,6 +452,56 @@ function ConceptPrompt({ doc }: { doc: GameAsset }) {
           </span>
         </label>
       )}
+    </div>
+  );
+}
+
+/** "Review the video first": the video is ready; animate it, or make another. */
+function ReviewPanel({ doc, step, selected, onSelect }: {
+  doc: GameAsset;
+  step: StepDef;
+  selected: Selection | null;
+  onSelect: (selection: Selection) => void;
+}) {
+  const world = worldOf(doc);
+  const review = awaitingReview(world, step);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    // show the video right away the first time it is ready
+    if (review && selected?.asset !== review.asset.id) onSelect({ step: step.id, asset: review.asset.id });
+  }, [review?.asset.id]);
+  if (!review) return null;
+  const meta = review.asset.meta as { clip?: string; check?: { verdict?: string; body?: number; limbs?: number } };
+  const check = meta.check ?? {};
+  const pct = (value?: number) => (value === undefined ? "?" : `${(value * 100).toFixed(1)} %`);
+  async function go(extra: Record<string, unknown>, message: string) {
+    setBusy(true);
+    const started = await act(() => runStep(doc, step, 1, extra));
+    setBusy(false);
+    if (started) toast(message, "good");
+  }
+  return (
+    <div class="review-panel">
+      <button class="thumb" title="Play the video in the preview" onClick={() => onSelect({ step: step.id, asset: review.asset.id })}>
+        <Thumb asset={review.asset} />
+      </button>
+      <div class="review-text">
+        <b>The video is ready: watch it in the preview.</b>
+        <span class="muted">
+          Two-view check: {check.verdict ?? "?"} (body {pct(check.body)}, limbs {pct(check.limbs)} of the height apart)
+        </span>
+        <span class="muted">Animating takes a few minutes. A new video takes about 10.</span>
+      </div>
+      <div class="review-actions">
+        <button class="button primary" disabled={busy || !meta.clip}
+          onClick={() => void go({ use_clip: meta.clip, review_video: false }, "Animating the reviewed video…")}>
+          ✓ Animate this video
+        </button>
+        <button class="button" disabled={busy}
+          onClick={() => void go({ use_clip: "", new_video: true }, "Making another video…")}>
+          ↻ Make another video
+        </button>
+      </div>
     </div>
   );
 }

@@ -377,6 +377,8 @@ export function results(world: World, step: StepDef): Result[] {
     .flatMap((job) =>
       job.outputs.flatMap((id) => {
         const asset = world.asset(id);
+        // a video waiting for review (motion step, "Review the video first") is not a result of a mesh step
+        if (asset && step.produces === "mesh" && asset.mime.startsWith("video/")) return [];
         return asset && !asset.deleted_at ? [{ asset, job }] : [];
       }),
     );
@@ -450,12 +452,26 @@ function usedInput(world: World, job: Job, role: string): string | undefined {
   return world.jobs.get(dep.job_id)?.outputs[dep.output_index ?? 0];
 }
 
-export type Status = "off" | "running" | "failed" | "stale" | "done" | "ready" | "blocked" | "nomodel";
+export type Status = "off" | "running" | "failed" | "stale" | "done" | "ready" | "blocked" | "nomodel" | "review";
+
+/** The newest video of this step that waits for your review ("Review the video first"), unless a model was made
+ * after it or a job is on its way. */
+export function awaitingReview(world: World, step: StepDef): { asset: Asset; job: Job } | undefined {
+  const jobs = stepJobs(world, step);
+  if (jobs.some((job) => PENDING.has(job.status))) return undefined;
+  const latest = jobs.find((job) => job.status === "succeeded");
+  if (!latest) return undefined;
+  const asset = latest.outputs.map((id) => world.asset(id)).find((item) => item && !item.deleted_at);
+  const meta = asset?.meta as { awaiting_review?: boolean } | undefined;
+  if (!asset || !asset.mime.startsWith("video/") || !meta?.awaiting_review) return undefined;
+  return { asset, job: latest };
+}
 
 export function status(world: World, step: StepDef): Status {
   if (!included(world.doc, step)) return "off";
   const jobs = stepJobs(world, step);
   if (jobs.some((job) => PENDING.has(job.status))) return "running";
+  if (awaitingReview(world, step)) return "review";
   const result = picked(world, step);
   if (result) return isStale(world, step) ? "stale" : "done";
   if (!chosen(world, step)) return "nomodel";
