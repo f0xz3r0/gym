@@ -120,15 +120,12 @@ function Loaded({ doc }: { doc: GameAsset }) {
 
   const plan = planRemaining(doc);
   const rigStep = stepById("rig");
-  // The test animation only makes sense once a skeleton step is on.
-  // "animate" retargets onto the Skeleton step's rig; "motion" (v1.1) makes its own rig, so it is always offered
-  // "animate" retargets onto the Skeleton step's rig; "motion" needs the Animation rig step
+  // Test animation checks the Skeleton step's weights: shown only with that step (the Animation rig route has its
+  // Rig test poses). Motion steps need the Animation rig step.
   const animRig = stepById("animrig");
   const steps = STEPS.filter(
     (step) =>
-      (step.id !== "animate" ||
-        (rigStep !== undefined && included(doc, rigStep)) ||
-        (animRig !== undefined && included(doc, animRig))) &&
+      (step.id !== "animate" || (rigStep !== undefined && included(doc, rigStep))) &&
       (!["motionreader", "motionvideo", "motion", "textmotion", "mocap"].includes(step.id) || (animRig !== undefined && included(doc, animRig))),
   );
   const kind = KINDS.find((item) => item.id === doc.kind);

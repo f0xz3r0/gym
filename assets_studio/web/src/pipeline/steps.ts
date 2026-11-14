@@ -186,6 +186,21 @@ export const STEPS: StepDef[] = [
     typical: "about 1 min",
   },
   {
+    id: "animate",
+    title: "Test animation",
+    blurb:
+      "Checks the Skeleton step's skin weights in Blender before you use the rig: a bend test, a turntable or a " +
+      "moving part. (The Animation rig route has its own check: the Rig test poses tab.)",
+    task: "rig-motion",
+    servers: ["blender-animation"],
+    optional: true,
+    defaultOn: never,
+    produces: "mesh",
+    from: { rig: ["rig"] },
+    params: { preset: "weight-check" },
+    typical: "about 30 s",
+  },
+  {
     id: "animrig",
     title: "Animation rig (auto-rig)",
     blurb:
@@ -276,19 +291,6 @@ export const STEPS: StepDef[] = [
     params: { output_format: "glb" },
     typical: "a few minutes",
     heavy: true,
-  },
-  {
-    id: "animate",
-    title: "Test animation",
-    blurb: "A quick motion to check the rig (bend test, turntable or a moving part).",
-    task: "rig-motion",
-    servers: ["blender-animation"],
-    optional: true,
-    defaultOn: never,
-    produces: "mesh",
-    from: { rig: ["animrig", "rig"] },
-    params: { preset: "weight-check" },
-    typical: "about 30 s",
   },
 ];
 
