@@ -240,15 +240,6 @@ main { flex: 1; }
 .chip-running { background: var(--accent-soft); color: var(--accent); }
 .chip-failed { background: var(--bad-soft); color: var(--bad); }
 .chip-stale, .chip-nomodel { background: var(--warn-soft); color: var(--warn); }
-.chip-review { background: var(--accent-soft); color: var(--accent); }
-.stepper-item.s-review .stepper-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.review-panel { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px; border-radius: 10px;
-  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
-.review-panel .thumb { width: 96px; height: 72px; border-radius: 8px; overflow: hidden; flex: none; position: relative; }
-.review-panel .thumb::after { content: "▶"; position: absolute; inset: 0; display: grid; place-items: center; color: white;
-  font-size: 22px; text-shadow: 0 1px 4px rgb(0 0 0 / 0.6); }
-.review-panel .review-text { flex: 1; min-width: 180px; font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; }
-.review-panel .review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip-ready { background: var(--accent-soft); color: var(--accent); }
 .job-chip-succeeded { background: var(--good-soft); color: var(--good); }
 .job-chip-failed { background: var(--bad-soft); color: var(--bad); }

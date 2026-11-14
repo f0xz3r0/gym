@@ -103,7 +103,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
       (step.id !== "animate" ||
         (rigStep !== undefined && included(doc, rigStep)) ||
         (animRig !== undefined && included(doc, animRig))) &&
-      (!["motion", "textmotion", "mocap"].includes(step.id) || (animRig !== undefined && included(doc, animRig))),
+      (!["motionreader", "motionvideo", "motion", "textmotion", "mocap"].includes(step.id) || (animRig !== undefined && included(doc, animRig))),
   );
   const kind = KINDS.find((item) => item.id === doc.kind);
 

@@ -16,6 +16,8 @@ export type StepId =
   | "normals"
   | "rig"
   | "animrig"
+  | "motionreader"
+  | "motionvideo"
   | "motion"
   | "textmotion"
   | "mocap"
@@ -31,7 +33,7 @@ export interface StepDef {
   servers: string[];
   optional: boolean;
   defaultOn: (kind: Kind) => boolean;
-  produces: "image" | "mesh";
+  produces: "image" | "mesh" | "video";
   /** For each input role, earlier steps to take it from, nearest first. */
   from: Record<string, StepId[]>;
   /** Settings that differ from the model's own defaults. */
@@ -200,20 +202,47 @@ export const STEPS: StepDef[] = [
     heavy: true,
   },
   {
-    id: "motion",
-    title: "Motion from AI video",
+    id: "motionreader",
+    title: "Motion reader",
     blurb:
-      "Animation pipeline v2.0, step 2: MiniMax-H3 films the rigged model from the front and the side, both views " +
-      "are checked against each other, and the move is fitted to the rig as a looping, in-place game animation. " +
-      "Running it approves the rig.",
-    task: "ai-video-motion",
+      "Teaches a small network to find this rig's joints in a video (video2rig step 2b). Once per rig; " +
+      "running it approves the rig. Skipped in seconds when this rig already has one.",
+    task: "ai-video-reader",
     servers: ["video2rig"],
     optional: true,
     defaultOn: (kind) => kind === "creature" || kind === "character",
     produces: "mesh",
     from: { rig: ["animrig"] },
+    typical: "about 20 min, once per rig",
+    heavy: true,
+  },
+  {
+    id: "motionvideo",
+    title: "Motion video",
+    blurb:
+      "MiniMax-H3 films the rigged model doing the move, from the front and the side, and the two views are " +
+      "checked against each other. Every run is a new take: pick the best one for Motion fit.",
+    task: "ai-video-clip",
+    servers: ["video2rig"],
+    optional: true,
+    defaultOn: (kind) => kind === "creature" || kind === "character",
+    produces: "video",
+    from: { rig: ["motionreader", "animrig"] },
     paramsFrom: (doc) => ({ creature: doc.name }),
-    typical: "about 30 min the first time (the reader trains once per creature), then about 12 min per move",
+    typical: "about 10 min",
+    heavy: true,
+  },
+  {
+    id: "motion",
+    title: "Motion fit",
+    blurb: "Fits the picked motion video to the rig and exports it as a looping, in-place game animation.",
+    task: "ai-video-fit",
+    servers: ["video2rig"],
+    optional: true,
+    defaultOn: (kind) => kind === "creature" || kind === "character",
+    produces: "mesh",
+    from: { rig: ["animrig"], video: ["motionvideo"] },
+    typical: "about 2 min",
     heavy: true,
   },
   {
@@ -377,7 +406,7 @@ export function results(world: World, step: StepDef): Result[] {
     .flatMap((job) =>
       job.outputs.flatMap((id) => {
         const asset = world.asset(id);
-        // a video waiting for review (motion step, "Review the video first") is not a result of a mesh step
+        // a video output of a mesh step (the motion step before it was split into reader, video and fit) is not one of its results
         if (asset && step.produces === "mesh" && asset.mime.startsWith("video/")) return [];
         return asset && !asset.deleted_at ? [{ asset, job }] : [];
       }),
@@ -439,7 +468,10 @@ export function isStale(world: World, step: StepDef): boolean {
   const now = inputsNow(world, step);
   if (!("inputs" in now)) return false;
   const job = result.job;
-  return Object.entries(now.inputs).some(([role, id]) => usedInput(world, job, role) !== id);
+  // a role the job did not have (a step that gained an input, e.g. Motion fit's video) is not a change
+  return Object.entries(now.inputs).some(
+    ([role, id]) => role in (job.inputs ?? {}) || role in (job.dependencies ?? {}) ? usedInput(world, job, role) !== id : false,
+  );
 }
 
 /** The asset a job used for an input role. A job queued as part of a chain
@@ -452,26 +484,12 @@ function usedInput(world: World, job: Job, role: string): string | undefined {
   return world.jobs.get(dep.job_id)?.outputs[dep.output_index ?? 0];
 }
 
-export type Status = "off" | "running" | "failed" | "stale" | "done" | "ready" | "blocked" | "nomodel" | "review";
-
-/** The newest video of this step that waits for your review ("Review the video first"), unless a model was made
- * after it or a job is on its way. */
-export function awaitingReview(world: World, step: StepDef): { asset: Asset; job: Job } | undefined {
-  const jobs = stepJobs(world, step);
-  if (jobs.some((job) => PENDING.has(job.status))) return undefined;
-  const latest = jobs.find((job) => job.status === "succeeded");
-  if (!latest) return undefined;
-  const asset = latest.outputs.map((id) => world.asset(id)).find((item) => item && !item.deleted_at);
-  const meta = asset?.meta as { awaiting_review?: boolean } | undefined;
-  if (!asset || !asset.mime.startsWith("video/") || !meta?.awaiting_review) return undefined;
-  return { asset, job: latest };
-}
+export type Status = "off" | "running" | "failed" | "stale" | "done" | "ready" | "blocked" | "nomodel";
 
 export function status(world: World, step: StepDef): Status {
   if (!included(world.doc, step)) return "off";
   const jobs = stepJobs(world, step);
   if (jobs.some((job) => PENDING.has(job.status))) return "running";
-  if (awaitingReview(world, step)) return "review";
   const result = picked(world, step);
   if (result) return isStale(world, step) ? "stale" : "done";
   if (!chosen(world, step)) return "nomodel";

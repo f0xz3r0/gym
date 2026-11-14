@@ -20,6 +20,8 @@ const SCENE: Record<string, Scene> = {
   normals: "paint",
   rig: "rig",
   animrig: "rig",
+  motionreader: "rig",
+  motionvideo: "motion",
   motion: "motion",
   textmotion: "motion",
   mocap: "motion",

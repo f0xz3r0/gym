@@ -7,7 +7,6 @@ import { assetById, jobs, mergeJob, putAsset, servers } from "../state/store";
 import { Conflict, pipelineApi, type GameAsset, type Kind, type StepState } from "./api";
 import {
   chosen,
-  awaitingReview,
   conceptAsIs,
   conceptReference,
   referenceMode,
@@ -270,7 +269,6 @@ export function planRemaining(doc: GameAsset): ChainPlan {
     if (!chosen(world, step)) return { run, problem: `No model is set up for “${step.title}”.` };
     if (step.userInput && !stepOf(doc, step.id).reference) continue; // waits for the user's pick
     if (step.id === "concept" && conceptAsIs(doc)) continue; // the user's own picture is the concept
-    if (awaitingReview(world, step)) break; // a video waits for your review: the chain stops here
     const pending = stepJobs(world, step).some((job) => PENDING.has(job.status));
     const upstreamRedone = Object.values(sources(world, step)).some((source) => source && redo.has(source.id));
     const current = picked(world, step) && !isStale(world, step);

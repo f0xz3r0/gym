@@ -15,7 +15,6 @@ export const STATUS_TEXT: Record<Status, string> = {
   ready: "Ready to run",
   blocked: "Waiting for earlier step",
   nomodel: "Model not set up",
-  review: "Video to review",
 };
 
 export function StatusChip({ status }: { status: Status }) {
@@ -66,23 +65,6 @@ function parseTypical(typical?: string): number | undefined {
   return unit.startsWith("h") ? value * 3600 : unit === "min" ? value * 60 : value;
 }
 
-/** Jobs of one task can be very different runs: the motion step can animate a reviewed clip (minutes), make a video
- * only (about 10 min) or do everything (video, fit, export). Only like is compared with like. */
-function runKind(job: Job): string {
-  const params = (job.params ?? {}) as Record<string, unknown>;
-  if (job.task === "ai-video-motion") {
-    if (params.use_clip) return "animate-clip";
-    if (params.review_video) return "video-only";
-    return "full";
-  }
-  return "";
-}
-
-/** Measured on this PC (WORKFLOW 2b, 9000 steps): the reader trains 17-23 min once per creature. */
-const READER_TRAINING_S = 20 * 60;
-/** A full motion run is at least a video plus fit and export, whatever quick resumes the history holds. */
-const MIN_FULL_MOTION_S = 12 * 60;
-
 function seconds(job: Job): number | undefined {
   const timing = job.timing as { generate_s?: number } | null | undefined;
   if (typeof timing?.generate_s === "number") return timing.generate_s;
@@ -90,21 +72,15 @@ function seconds(job: Job): number | undefined {
   return undefined;
 }
 
-/** How long a job of this model and task (and kind of run) usually takes: the median of its last finished runs (up
- * to 8), else the step's typical time. A motion run on a rig that never had one adds the reader's training.
- * Undefined when there is nothing to go on, or for interactive tasks. */
+/** How long a job of this model and task usually takes: the median of its last finished runs (up to 8; runs under a
+ * minute are reuses, not counted), else the step's typical time. Undefined when there is nothing to go on, or for
+ * interactive tasks. */
 export function estimateSeconds(job: Job, typical?: string): number | undefined {
   if (INTERACTIVE.has(job.task)) return undefined;
-  const kind = runKind(job);
   const past: number[] = [];
-  let rigSeen = false;
-  const rig = (job.inputs as Record<string, string | undefined>).rig;
   for (const other of allJobs.value.values()) {
     if (other.id === job.id || other.server !== job.server || other.task !== job.task) continue;
-    if (rig && (other.inputs as Record<string, string | undefined>).rig === rig && other.status === "succeeded"
-        && Date.parse(other.created_at) < Date.parse(job.created_at))
-      rigSeen = true;
-    if (other.status !== "succeeded" || runKind(other) !== kind) continue;
+    if (other.status !== "succeeded") continue;
     const value = seconds(other);
     // under a minute is a reuse (an earlier clip offered again, a resumed export), not a run like this one
     if (value !== undefined && value >= 60) past.push(value);
@@ -115,11 +91,6 @@ export function estimateSeconds(job: Job, typical?: string): number | undefined 
     estimate = recent[Math.floor(recent.length / 2)];
   } else {
     estimate = parseTypical(typical);
-  }
-  if (estimate === undefined) return undefined;
-  if (job.task === "ai-video-motion") {
-    if (kind === "full") estimate = Math.max(estimate, MIN_FULL_MOTION_S);
-    if (kind !== "animate-clip" && !rigSeen) estimate += READER_TRAINING_S;
   }
   return estimate;
 }
