@@ -1,4 +1,5 @@
 // The large preview of one result: image, 3D model (with its animations) or text.
+import { SnapshotThumb } from "../components/snapshotThumbs";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import type { Asset } from "../api/client";
@@ -387,15 +388,5 @@ export function Thumb({ asset }: { asset: Asset | undefined }) {
 }
 
 function MeshThumb({ asset }: { asset: Asset }) {
-  const ready = useModelViewer(true);
-  if (!ready) return <span class="thumb-icon">◆</span>;
-  return (
-    <model-viewer
-      src={asset.file_url}
-      loading="lazy"
-      interaction-prompt="none"
-      shadow-intensity="0"
-      onLoad={clayIfShapeOnly(asset)}
-    />
-  );
+  return <SnapshotThumb asset={asset} />;
 }

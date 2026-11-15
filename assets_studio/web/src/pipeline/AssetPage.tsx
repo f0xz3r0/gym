@@ -25,6 +25,7 @@ import {
 import { finalResult, included, KINDS, PENDING, picked, results, status, stepById, stepJobs, STEPS } from "./steps";
 import { ConfirmButton, Modal } from "./ui";
 import { WorkingPreview } from "./Working";
+import { CleanupDialog } from "./CleanupDialog";
 
 export function AssetPage({ id }: { id: string }) {
   const doc = docs.value.get(id);
@@ -51,6 +52,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [confirmRun, setConfirmRun] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   useEffect(() => ensureJobs(allJobIds(doc)), [doc.rev]);
 
   // The preview follows your clicks; until then it shows the newest finished step.
@@ -144,6 +146,9 @@ function Loaded({ doc }: { doc: GameAsset }) {
           </button>
         </div>
         <span class="spacer" />
+        <button class="button small ghost" onClick={() => setCleaning(true)} title="Delete results you no longer need">
+          Clean up…
+        </button>
         {plan.run.length > 0 ? (
           <button class="button primary" onClick={() => setConfirmRun(true)}>
             ▶ Run remaining steps ({plan.run.length})
@@ -176,6 +181,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
         </a>
       </nav>
 
+      {cleaning && <CleanupDialog doc={doc} onClose={() => setCleaning(false)} />}
       <div class={`asset-body${checkMeta ? " with-check" : ""}`}>
         <div class="steps">
           {steps.map((step, index) => (

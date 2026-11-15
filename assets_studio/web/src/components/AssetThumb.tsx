@@ -1,8 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 
+import { SnapshotThumb } from "./snapshotThumbs";
 import type { Asset } from "../api/client";
 import { assetName, isMotionAsset, isReadableText } from "../format";
-import { clayIfShapeOnly, useModelViewer } from "./AssetPreview";
 import {
   CubeIcon,
   DataIcon,
@@ -35,18 +35,8 @@ function VideoThumb({ asset }: { asset: Asset }) {
  * ADR-006) cannot be shown: a cube. */
 function MeshThumb({ asset }: { asset: Asset }) {
   const glb = asset.mime === "model/gltf-binary";
-  const ready = useModelViewer(glb);
-  if (!glb || !ready) return <CubeIcon />;
-  return (
-    <model-viewer
-      src={asset.file_url}
-      loading="lazy"
-      interaction-prompt="none"
-      shadow-intensity="0"
-      aria-label={assetName(asset)}
-      onLoad={clayIfShapeOnly(asset)}
-    />
-  );
+  if (!glb) return <CubeIcon />;
+  return <SnapshotThumb asset={asset} />;
 }
 
 export function AssetThumb({ asset }: { asset: Asset | undefined }) {

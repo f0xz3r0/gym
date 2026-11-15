@@ -582,3 +582,28 @@ main { flex: 1; }
 }
 .check-tuned .check-fix, .check-list .check-fix { min-height: 0; padding: 0; line-height: 1.35; }
 .check-fix input[type="checkbox"] { min-height: 0; height: 14px; width: 14px; margin: 0; flex: none; }
+.snapshot-thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
+.snapshot-pending { width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; }
+.snapshot-pending model-viewer { --poster-color: transparent; }
+
+/* bulk delete: Select… on a step, Clean up… on the asset */
+.result { position: relative; }
+.result.choosable { opacity: 0.85; }
+.result.chosen { outline: 2px solid var(--bad); outline-offset: 1px; }
+.result.locked { opacity: 0.45; cursor: not-allowed; }
+.select-box { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 4px; display: grid;
+  place-items: center; font-size: 12px; background: var(--surface); border: 1.5px solid var(--border); color: white; }
+.select-box.on { background: var(--bad); border-color: var(--bad); }
+.select-lock { position: absolute; top: 3px; right: 4px; font-size: 12px; }
+.select-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px;
+  background: var(--surface-2); }
+.cleanup { display: flex; flex-direction: column; gap: 12px; padding: 0 4px 4px; min-width: min(480px, 90vw); }
+.cleanup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cleanup-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 10px;
+  border-radius: 8px; background: var(--surface-2); }
+.cleanup-list input[type="checkbox"] { min-height: 0; height: 14px; width: 14px; margin: 0 6px 0 0; }
+.cleanup-actions { display: flex; align-items: center; gap: 8px; }
+.library-card { position: relative; }
+.library-card.chosen { outline: 2px solid var(--bad); outline-offset: 1px; }
+.library-card.locked { opacity: 0.45; cursor: not-allowed; }
+.library-tools .select-bar { margin-top: 2px; }

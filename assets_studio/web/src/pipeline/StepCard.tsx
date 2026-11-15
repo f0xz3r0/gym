@@ -50,7 +50,8 @@ import {
   stepJobs,
   type StepDef,
 } from "./steps";
-import { Dot, JobProgress, RunningChip, StatusChip } from "./ui";
+import { ConfirmButton, Dot, JobProgress, RunningChip, StatusChip } from "./ui";
+import { deleteResults, megabytes, protectedIds } from "./cleanup";
 
 /** Descriptions typed but maybe not saved yet, by game asset. */
 const promptDrafts = new Map<string, string>();
@@ -87,6 +88,10 @@ export function StepCard({
   const [adding, setAdding] = useState(false);
   const [variations, setVariations] = useState(1);
   const [starting, setStarting] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [chosenIds, setChosenIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const locked = protectedIds(world);
 
   if (state === "off")
     return (
@@ -164,21 +169,71 @@ export function StepCard({
           {list.map(({ asset }) => {
             const isPick = current?.asset.id === asset.id;
             const isSelected = selected?.asset === asset.id;
+            const isLocked = locked.has(asset.id);
+            const isChosen = chosenIds.has(asset.id);
             return (
               <button
                 key={asset.id}
                 role="listitem"
-                class={`result${isPick ? " picked" : ""}${isSelected ? " selected" : ""}`}
-                title={isPick ? "Used for the next step" : "Click to preview"}
-                onClick={() => onSelect({ step: step.id, asset: asset.id })}
+                class={`result${isPick ? " picked" : ""}${isSelected && !selecting ? " selected" : ""}${
+                  selecting ? (isLocked ? " locked" : isChosen ? " chosen" : " choosable") : ""}`}
+                title={selecting
+                  ? isLocked ? "In use: this result or one made from it is picked, so it stays" : "Click to mark for deletion"
+                  : isPick ? "Used for the next step" : "Click to preview"}
+                onClick={() => {
+                  if (!selecting) return onSelect({ step: step.id, asset: asset.id });
+                  if (isLocked) return;
+                  setChosenIds((now) => {
+                    const next = new Set(now);
+                    if (next.has(asset.id)) next.delete(asset.id);
+                    else next.add(asset.id);
+                    return next;
+                  });
+                }}
               >
                 <span class="thumb">
                   <Thumb asset={asset} />
                 </span>
                 {isPick && <span class="pick-badge">Using</span>}
+                {selecting && !isLocked && <span class={`select-box${isChosen ? " on" : ""}`}>{isChosen ? "✓" : ""}</span>}
+                {selecting && isLocked && <span class="select-lock" aria-label="In use">🔒</span>}
               </button>
             );
           })}
+        </div>
+      )}
+      {selecting && (
+        <div class="select-bar">
+          <button class="button small" onClick={() =>
+            setChosenIds(new Set(list.filter((r) => !locked.has(r.asset.id)).map((r) => r.asset.id)))}>
+            Select all not in use
+          </button>
+          {chosenIds.size > 0 && (
+            <button class="button small ghost" onClick={() => setChosenIds(new Set())}>Clear</button>
+          )}
+          <span class="spacer" />
+          <span class="muted small">
+            {chosenIds.size} selected · {megabytes(list.filter((r) => chosenIds.has(r.asset.id))).toFixed(0)} MB
+          </span>
+          <ConfirmButton
+            class="small"
+            label={deleting ? "Deleting…" : `Delete ${chosenIds.size}`}
+            confirm={`Delete ${chosenIds.size} for good? Click again`}
+            onConfirm={() => {
+              if (!chosenIds.size || deleting) return;
+              setDeleting(true);
+              void act(async () => {
+                const items = list.filter((r) => chosenIds.has(r.asset.id)).map((r) => ({ step, asset: r.asset }));
+                const { deleted } = await deleteResults(doc, items);
+                toast(`Deleted ${deleted} result${deleted === 1 ? "" : "s"} from ${step.title}.`, "good");
+              }).finally(() => {
+                setDeleting(false);
+                setChosenIds(new Set());
+                setSelecting(false);
+              });
+            }}
+          />
+          <button class="button small ghost" onClick={() => { setSelecting(false); setChosenIds(new Set()); }}>Done</button>
         </div>
       )}
 
@@ -266,6 +321,11 @@ export function StepCard({
           )
         )}
         <span class="spacer" />
+        {list.length > 1 && !selecting && (
+          <button class="button small ghost" title="Choose results to delete" onClick={() => setSelecting(true)}>
+            Select…
+          </button>
+        )}
         {(step.produces === "image" || step.id === "shape") && (
           <button class="button small ghost" onClick={() => setAdding(true)}>
             Use my own…

@@ -1,13 +1,12 @@
 // The library: every asset the studio has, to find, judge, fix and reuse. Search and filters on the left, the
 // selected asset on the right (its preview with tabs, how it was made, what it was made from, which game asset
-// uses it, rating, tags, actions). Routes: #/library and #/library/<asset id> (← / → step through the list).
+// uses it, tags, actions). Routes: #/library and #/library/<asset id> (← / → step through the list).
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { api, type Asset, type Parent } from "../api/client";
 import {
   DeleteButton,
   FavoriteButton,
-  RatingButtons,
   RemoveBackgroundButtons,
 } from "../components/AssetActions";
 import { ModelCleanup } from "../components/ModelCleanup";
@@ -16,7 +15,9 @@ import { Tags } from "../components/Tags";
 import { assetName, bytes, isMotionAsset, time } from "../format";
 import { assetById, assets, attempt, jobs, putAsset, putAssets, succeededJobs } from "../state/store";
 import { facts, Preview, Thumb } from "./Preview";
-import { docs } from "./state";
+import { docs, toast } from "./state";
+import { deleteAssets, loadForProtection, protectedEverywhere } from "./cleanup";
+import { ConfirmButton } from "./ui";
 import { stepById } from "./steps";
 
 type Kind = "all" | "image" | "mesh" | "animation" | "video" | "text" | "favorite";
@@ -68,9 +69,11 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
   const [kind, setKind] = useState<Kind>("all");
   const [search, setSearch] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [rating, setRating] = useState<"any" | "unrated" | "3" | "4" | "5">("any");
   const [limit, setLimit] = useState(PAGE);
   const [ids, setIds] = useState<string[] | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState<string | null>(null);
   const finished = succeededJobs.value;
 
   useEffect(() => {
@@ -83,8 +86,7 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
           : kind === "mesh"
             ? { kind: "mesh" }
             : { kind };
-    const scored = rating === "any" ? {} : rating === "unrated" ? { unrated: true } : { minRating: Number(rating) };
-    void attempt(() => api.assets({ ...query, ...scored, tags, limit })).then((list) => {
+    void attempt(() => api.assets({ ...query, tags, limit })).then((list) => {
       if (!current) return;
       putAssets(list ?? []);
       setIds(list?.map((asset) => asset.id) ?? []);
@@ -92,7 +94,7 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
     return () => {
       current = false;
     };
-  }, [kind, tags, rating, limit, finished]);
+  }, [kind, tags, limit, finished]);
 
   const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const listed = (ids ?? []).flatMap((id) => {
@@ -110,6 +112,16 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
   });
   const shown = listed.map((asset) => asset.id);
   const selected = selectedId ? assetById(selectedId) : undefined;
+  const locked = selecting ? protectedEverywhere() : new Set<string>();
+  const chosenList = listed.filter((asset) => chosen.has(asset.id));
+  const chosenMb = chosenList.reduce((sum, asset) => sum + (asset.size_bytes ?? 0), 0) / 2 ** 20;
+  const toggle = (id: string) =>
+    setChosen((now) => {
+      const next = new Set(now);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // ← / → step through the list (not while typing)
   const at = useRef(selectedId);
@@ -154,16 +166,6 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
             ))}
           </div>
           <div class="row">
-            <label class="inline">
-              <span class="muted small">Rating</span>
-              <select value={rating} onChange={(event) => setRating(event.currentTarget.value as typeof rating)}>
-                <option value="any">any</option>
-                <option value="5">★★★★★</option>
-                <option value="4">★★★★ or more</option>
-                <option value="3">★★★ or more</option>
-                <option value="unrated">not rated</option>
-              </select>
-            </label>
             {tags.map((tag) => (
               <button key={tag} class="chip" title="Remove this filter" onClick={() => setTags(tags.filter((t) => t !== tag))}>
                 #{tag} ✕
@@ -171,7 +173,48 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
             ))}
             <span class="spacer" />
             <span class="muted small">{ids === null ? "Loading…" : `${listed.length} shown`}</span>
+            {!selecting && (
+              <button class="button small ghost" disabled={deleting !== null} title="Choose assets to delete"
+                onClick={() => {
+                  setDeleting("Checking what is in use…");
+                  void loadForProtection().finally(() => {
+                    setDeleting(null);
+                    setSelecting(true);
+                  });
+                }}>
+                {deleting ?? "Select…"}
+              </button>
+            )}
           </div>
+          {selecting && (
+            <div class="select-bar">
+              <button class="button small" onClick={() => setChosen(new Set(listed.filter((a) => !locked.has(a.id)).map((a) => a.id)))}>
+                Select all shown not in use
+              </button>
+              {chosen.size > 0 && <button class="button small ghost" onClick={() => setChosen(new Set())}>Clear</button>}
+              <span class="spacer" />
+              <span class="muted small">{chosen.size} selected · {chosenMb.toFixed(0)} MB</span>
+              <ConfirmButton
+                class="small"
+                label={deleting ?? `Delete ${chosen.size}`}
+                confirm={`Delete ${chosen.size} for good? Click again`}
+                onConfirm={() => {
+                  if (!chosen.size || deleting) return;
+                  setDeleting("Deleting…");
+                  void deleteAssets(chosenList, (done, total) => setDeleting(`Deleting ${done}/${total}…`))
+                    .then(({ deleted, skipped }) =>
+                      toast(`Deleted ${deleted}${skipped ? `; ${skipped} in use were kept` : ""}.`, "good"))
+                    .catch((error) => toast(String(error), "error"))
+                    .finally(() => {
+                      setDeleting(null);
+                      setChosen(new Set());
+                      setSelecting(false);
+                    });
+                }}
+              />
+              <button class="button small ghost" onClick={() => { setSelecting(false); setChosen(new Set()); }}>Done</button>
+            </div>
+          )}
         </div>
         <div class="library-grid" role="list">
           {listed.map((asset) => (
@@ -179,16 +222,25 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
               key={asset.id}
               role="listitem"
               href={hrefLib(asset.id)}
-              class={`library-card${asset.id === selectedId ? " selected" : ""}`}
-              title={displayName(asset)}
+              class={`library-card${asset.id === selectedId && !selecting ? " selected" : ""}${
+                selecting ? (locked.has(asset.id) ? " locked" : chosen.has(asset.id) ? " chosen" : " choosable") : ""}`}
+              title={selecting && locked.has(asset.id) ? "In use by a game asset: it stays" : displayName(asset)}
+              onClick={(event) => {
+                if (!selecting) return;
+                event.preventDefault();
+                if (!locked.has(asset.id)) toggle(asset.id);
+              }}
             >
+              {selecting && !locked.has(asset.id) && (
+                <span class={`select-box${chosen.has(asset.id) ? " on" : ""}`}>{chosen.has(asset.id) ? "✓" : ""}</span>
+              )}
+              {selecting && locked.has(asset.id) && <span class="select-lock" aria-label="In use">🔒</span>}
               <span class="thumb">
                 <Thumb asset={asset} />
               </span>
               <span class="library-card-name">{displayName(asset)}</span>
               <span class="library-card-badges">
                 {asset.favorite && <span title="Favourite">★</span>}
-                {typeof asset.rating === "number" && <span title="Rating">{"★".repeat(asset.rating)}</span>}
                 {animated(asset) && <span title="Animated">▶</span>}
               </span>
             </a>
@@ -260,7 +312,6 @@ function Details({ asset, onPickTag }: { asset: Asset; onPickTag: (tag: string) 
           Download
         </a>
         <FavoriteButton asset={asset} />
-        <RatingButtons asset={asset} />
         {isMesh && <ModelCleanup asset={asset} />}
         {asset.kind === "image" && <RemoveBackgroundButtons asset={asset} />}
         <span class="spacer" />
