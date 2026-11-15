@@ -357,6 +357,32 @@ export function rigPose(kind: Kind): string {
   return "";
 }
 
+/** The asset's real size as a sentence for the concept prompt (2026-11-15: the description writer rewrote the idea
+ * and dropped "Real size: ...", so the size is now added to the image prompt itself, after the writer). Image models
+ * follow proportions better than metres, so both are given. Empty when no size is set. */
+export function sizePrompt(doc: GameAsset): string {
+  const [w = 0, h = 0, d = 0] = doc.godot.size ?? [];
+  const parts = [w > 0 && `${w} m wide`, h > 0 && `${h} m tall`, d > 0 && `${d} m deep`].filter(Boolean);
+  if (!parts.length) return "";
+  let text = `Real size: ${parts.join(", ")}.`;
+  if (w > 0 && h > 0) {
+    const r = w / h;
+    text +=
+      Math.abs(r - 1) < 0.08
+        ? " It is as wide as it is tall."
+        : r > 1
+          ? ` It is ${r.toFixed(1)} times as wide as it is tall.`
+          : ` It is ${(1 / r).toFixed(1)} times as tall as it is wide.`;
+  }
+  const big = Math.max(w, h);
+  if (d > 0 && big > 0 && d < big / 6) text += " It is thin and flat from front to back.";
+  return text + " Draw it with exactly these proportions, the whole object in view.";
+}
+
+/** A prompt with any earlier "Real size: ..." sentences taken out (decimals such as 1.2 do not end a sentence). */
+export const withoutSize = (text: string) =>
+  text.replace(/Real size:.*?\.(?=\s|$)\s*(?:It is .*?\.(?=\s|$)\s*)*(?:Draw it with exactly these proportions.*?\.(?=\s|$)\s*)?/g, "").trim();
+
 /** The concept step's reference picture (asset id), if one is set. */
 export function conceptReference(doc: GameAsset): string | undefined {
   return stepState(doc, "concept").reference ?? undefined;

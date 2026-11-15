@@ -47,7 +47,8 @@ export function Home() {
   );
 }
 
-function Card({ doc }: { doc: GameAsset }) {
+/** Where a game asset stands, in one line, and its step dots (also shown on scene plans). */
+export function assetProgress(doc: GameAsset) {
   const world = worldOf(doc);
   const steps = STEPS.filter((step) => included(doc, step));
   const states = steps.map((step) => ({ step, state: status(world, step) }));
@@ -55,7 +56,6 @@ function Card({ doc }: { doc: GameAsset }) {
   const failed = states.find((item) => item.state === "failed");
   const next = states.find((item) => item.state !== "done");
   const sent = (doc.godot.exports ?? []).at(-1);
-  const final = finalResult(world);
   const line = running
     ? `${running.step.title}: working…`
     : failed
@@ -67,21 +67,47 @@ function Card({ doc }: { doc: GameAsset }) {
           : next.state === "stale"
             ? `${next.step.title}: needs update`
             : `Next: ${next.step.title}`;
+  return { line, states, sent, running: !!running, failed: !!failed };
+}
+
+/** The asset's best picture: its final model, else its concept, else its initial. */
+export function AssetCover({ doc }: { doc: GameAsset }) {
+  const world = worldOf(doc);
+  const final = finalResult(world);
   const cover = coverImage(world);
+  return final && final.result.asset.mime === "model/gltf-binary" ? (
+    <Thumb asset={final.result.asset} />
+  ) : cover ? (
+    <Thumb asset={cover} />
+  ) : (
+    <span class="card-placeholder">{doc.name.slice(0, 1).toUpperCase()}</span>
+  );
+}
+
+/** The step dots under an asset's name. */
+export function MiniSteps({ doc }: { doc: GameAsset }) {
+  const { states, sent } = assetProgress(doc);
+  return (
+    <span class="mini-steps" aria-label="Step progress">
+      {states.map(({ step, state }) => (
+        <span key={step.id} class={`mini s-${state}`} title={`${step.title}: ${STATUS_TEXT[state]}`} />
+      ))}
+      <span class={`mini s-${sent ? "done" : "ready"}`} title="Godot" />
+    </span>
+  );
+}
+
+function Card({ doc }: { doc: GameAsset }) {
+  const { line, running, failed } = assetProgress(doc);
   return (
     <a class="card" href={`#/a/${doc.id}`}>
       <span class="card-image">
-        {final && final.result.asset.mime === "model/gltf-binary" ? <Thumb asset={final.result.asset} /> : cover ? <Thumb asset={cover} /> : <span class="card-placeholder">{doc.name.slice(0, 1).toUpperCase()}</span>}
+        <AssetCover doc={doc} />
       </span>
       <span class="card-body">
         <b>{doc.name}</b>
         <span class={`card-line${running ? " live" : failed ? " bad" : ""}`}>{line}</span>
-        <span class="mini-steps" aria-label="Step progress">
-          {states.map(({ step, state }) => (
-            <span key={step.id} class={`mini s-${state}`} title={`${step.title}: ${STATUS_TEXT[state]}`} />
-          ))}
-          <span class={`mini s-${sent ? "done" : "ready"}`} title="Godot" />
-        </span>
+        <MiniSteps doc={doc} />
       </span>
     </a>
   );

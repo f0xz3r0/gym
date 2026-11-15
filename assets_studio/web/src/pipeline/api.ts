@@ -25,8 +25,28 @@ export interface StepState {
   rigReady?: boolean;
 }
 
+/** Real size in metres: [width, height, depth], 0 = free (real_size.py). */
+export type RealSize = [number, number, number];
+export type SizeMode = "uniform" | "stretch";
+export type Pivot = "bottom-center" | "bottom-left";
+
+export interface SizedResult {
+  /** older exports only: a separate sized scene (now the size is built into the GLB) */
+  scene?: string | null;
+  target: RealSize | null;
+  size: RealSize | null;
+  measured: RealSize | null;
+  mode: SizeMode;
+  pivot: Pivot;
+  warnings: string[];
+  /** with "Square the ends": how much was cut off each end, in mm at the real size */
+  squared?: Record<string, number> | null;
+}
+
 export interface GodotExportRecord {
   res_path: string;
+  /** set when a real size was given: the sized scene and what it measured */
+  real_size?: SizedResult | null;
   /** A ready-to-play demo scene written beside an in-place animation (res:// path). */
   demo_scene?: string | null;
   path: string;
@@ -49,6 +69,12 @@ export interface GameAsset {
     folder?: string;
     file_name?: string;
     exports?: GodotExportRecord[];
+    /** real size the model is scaled to on export */
+    size?: RealSize;
+    size_mode?: SizeMode;
+    pivot?: Pivot;
+    /** cut the rounded tips off both width ends on export, so kit parts meet flush */
+    square_ends?: boolean;
   };
   created_at: string;
   updated_at: string;
@@ -112,6 +138,10 @@ export const pipelineApi = {
     overwrite: boolean;
     pipeline_asset: string;
     provenance: Record<string, string>;
+    size?: RealSize | null;
+    size_mode?: SizeMode;
+    pivot?: Pivot;
+    square_ends?: boolean;
   }) =>
     call<Omit<GodotExportRecord, "asset">>("POST", "/api/godot/export", body),
   reveal: (path: string) => call<{ shown: boolean }>("POST", "/api/godot/reveal", { path }),

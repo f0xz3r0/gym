@@ -1,7 +1,7 @@
 // The last step: copy the finished model into a Godot project of your choice.
 import { useEffect, useState } from "preact/hooks";
 
-import { Conflict, pipelineApi, type GameAsset, type GodotProject } from "./api";
+import { Conflict, pipelineApi, type GameAsset, type GodotProject, type Pivot, type RealSize, type SizeMode } from "./api";
 import { Thumb } from "./Preview";
 import { act, toast, update, worldOf } from "./state";
 import { picked, sendable, STEPS } from "./steps";
@@ -59,6 +59,10 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
         overwrite,
         pipeline_asset: doc.id,
         provenance,
+        size: hasSize(doc.godot.size) ? doc.godot.size : null,
+        size_mode: doc.godot.size_mode ?? "uniform",
+        pivot: doc.godot.pivot ?? "bottom-center",
+        square_ends: !!doc.godot.square_ends && final.result.asset.mime === "model/gltf-binary",
       });
       await update(doc.id, (next) => {
         next.godot = {
@@ -69,8 +73,11 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
           exports: [...(next.godot.exports ?? []), { ...record, asset: final.result.asset.id }],
         };
       });
+      const sized = record.real_size;
       toast(
         `Sent to ${record.project_name} as ${record.res_path}.` +
+          (sized?.size ? ` Real size ${sized.size.map((v) => v.toFixed(2)).join(" × ")} m.` : "") +
+          (sized?.squared ? " Ends squared." : "") +
           (record.demo_scene ? ` Demo: open ${record.demo_scene} and press F6 (walks on a checker floor).` : "") +
           " Switch to Godot and it imports automatically.",
         "good",
@@ -161,6 +168,7 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
               <input value={fileName} onInput={(event) => setFileName(event.currentTarget.value)} />
             </label>
           </div>
+          <RealSizeFields doc={doc} />
           <p class="muted small">
             Will be saved as <code>res://assets/{slug(folder)}/{slug(fileName)}.{final.result.asset.mime === "model/x-fbx" ? "fbx" : "glb"}</code>
           </p>
@@ -179,7 +187,13 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
           ) : (
             <footer class="step-actions">
               <button class="button primary" disabled={busy || !project} onClick={() => void send(false)}>
-                {busy ? "Sending…" : sentThis ? "Send again" : "Send to Godot"}
+                {busy
+                  ? doc.godot.square_ends
+                    ? "Squaring the ends in Blender and sending (a few seconds)…"
+                    : "Sending…"
+                  : sentThis
+                    ? "Send again"
+                    : "Send to Godot"}
               </button>
             </footer>
           )}
@@ -193,6 +207,24 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
               <span>
                 <b>{item.project_name}</b> <code>{item.res_path}</code>
                 <span class="muted small"> · {new Date(item.exported_at).toLocaleString()}</span>
+                {item.real_size && (
+                  <span class="small sized-line">
+                    {item.real_size.size && (
+                      <span>
+                        {item.real_size.size.map((v) => v.toFixed(2)).join(" × ")} m
+                        <span class="muted"> (made at {item.real_size.measured?.map((v) => v.toFixed(2)).join(" × ")})</span>
+                      </span>
+                    )}
+                    {item.real_size.squared && (
+                      <span class="muted">
+                        Ends squared: cut {Object.entries(item.real_size.squared).map(([end, mm]) => `${mm} mm ${end}`).join(", ")}
+                      </span>
+                    )}
+                    {item.real_size.warnings.map((w) => (
+                      <span key={w} class="sized-warn">{w}</span>
+                    ))}
+                  </span>
+                )}
               </span>
               <button class="button small ghost" onClick={() => void act(() => pipelineApi.reveal(item.path))}>
                 Show in Explorer
@@ -212,6 +244,84 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
         />
       )}
     </section>
+  );
+}
+
+const hasSize = (size: RealSize | undefined): size is RealSize => !!size && size.some((v) => v > 0);
+
+/** Width / height / depth in metres, how to scale, and where the pivot goes. Saved on the asset. */
+export function RealSizeFields({ doc }: { doc: GameAsset }) {
+  const size: RealSize = doc.godot.size ?? [0, 0, 0];
+  const [draft, setDraft] = useState(size.map((v) => (v > 0 ? String(v) : "")));
+  useEffect(() => setDraft(size.map((v) => (v > 0 ? String(v) : ""))), [doc.godot.size?.join()]);
+  const save = (change: Partial<GameAsset["godot"]>) =>
+    void act(() => update(doc.id, (next) => void (next.godot = { ...next.godot, ...change })));
+  // only the field that was left is saved, merged into the latest saved size: saving all three from a stale copy of
+  // the fields once wiped a set size to 0 x 0 x 0 (2026-11-15)
+  const commitOne = (i: number) => {
+    const value = Number((draft[i] ?? "").replace(",", "."));
+    const parsed = Number.isFinite(value) && value > 0 ? Math.round(value * 1000) / 1000 : 0;
+    if (parsed === (size[i] ?? 0)) return;
+    void act(() =>
+      update(doc.id, (next) => {
+        const current = [...(next.godot.size ?? [0, 0, 0])] as RealSize;
+        current[i] = parsed;
+        next.godot = { ...next.godot, size: current };
+      }),
+    );
+  };
+  return (
+    <fieldset class="real-size">
+      <legend>Real size (metres)</legend>
+      <div class="real-size-row">
+        {(["Width", "Height", "Depth"] as const).map((label, i) => (
+          <label key={label} class="field">
+            <span>{label}</span>
+            <input
+              inputMode="decimal"
+              placeholder="free"
+              value={draft[i]}
+              onInput={(event) => {
+                const next = [...draft];
+                next[i] = event.currentTarget.value;
+                setDraft(next);
+              }}
+              onBlur={() => commitOne(i)}
+            />
+          </label>
+        ))}
+        <label class="field">
+          <span>Scaling</span>
+          <select value={doc.godot.size_mode ?? "uniform"} onChange={(event) => save({ size_mode: event.currentTarget.value as SizeMode })}>
+            <option value="uniform">Keep proportions</option>
+            <option value="stretch">Stretch to exact size</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Pivot</span>
+          <select value={doc.godot.pivot ?? "bottom-center"} onChange={(event) => save({ pivot: event.currentTarget.value as Pivot })}>
+            <option value="bottom-center">Bottom centre (props)</option>
+            <option value="bottom-left">Bottom left end (kit parts in a row)</option>
+          </select>
+        </label>
+      </div>
+      <label class="check" title="AI models round every edge, so parts placed end to end touch only at the tips and leave a notch">
+        <input
+          type="checkbox"
+          checked={!!doc.godot.square_ends}
+          onChange={(event) => save({ square_ends: event.currentTarget.checked })}
+        />
+        Square the ends{" "}
+        <span class="muted small">
+          (kit parts that join end to end, like fence panels and wall pieces: the rounded tips of both width ends are
+          cut off flat on export, so neighbours meet flush)
+        </span>
+      </label>
+      <p class="muted small">
+        Leave a side empty to let it follow the model. With <i>Keep proportions</i> the longest side you give is exact
+        and the others are reported; <i>Stretch</i> makes every side exact but can bend details.
+      </p>
+    </fieldset>
   );
 }
 

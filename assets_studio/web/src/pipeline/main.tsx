@@ -1,4 +1,4 @@
-// The studio UI (v2): game assets from idea to Godot, the library of everything made, the queue, the models and
+// The studio UI (v2): scene plans, game assets from idea to Godot, the library of everything made, the queue, the models and
 // the tools (Blender builder, video frames). Served at "/".
 import "./style.css";
 
@@ -13,12 +13,15 @@ import { ModelsPage, QueuePage } from "./Pages";
 import { LibraryPage } from "./Library";
 import { BlenderBuilderPage } from "../pages/BlenderBuilderPage";
 import { FramesPage } from "./Frames";
+import { ScenePage, ScenesHome } from "./ScenePlans";
 import { act, loadDocs, toasts } from "./state";
 import { Dot } from "./ui";
 
 type Route =
   | { page: "home" }
   | { page: "asset"; id: string }
+  | { page: "scenes" }
+  | { page: "scene"; id: string }
   | { page: "queue" }
   | { page: "models" }
   | { page: "library"; id: string | null }
@@ -28,6 +31,8 @@ type Route =
 function parse(hash: string): Route {
   const [page, id] = hash.replace(/^#\/?/, "").split("/");
   if (page === "a" && id) return { page: "asset", id: decodeURIComponent(id) };
+  if (page === "s" && id) return { page: "scene", id: decodeURIComponent(id) };
+  if (page === "scenes") return { page: "scenes" };
   if (page === "queue" || page === "jobs") return { page: "queue" };
   if (page === "library") return { page: "library", id: id ? decodeURIComponent(id) : null };
   if (page === "builder" || (page === "tool" && id === "blender-builder")) return { page: "builder" };
@@ -61,6 +66,9 @@ function TopBar() {
         <span class="brand-mark" aria-hidden="true">◆</span> Asset Studio
       </a>
       <nav>
+        <a href="#/scenes" class={current.page === "scenes" || current.page === "scene" ? "active" : ""}>
+          Scenes
+        </a>
         <a href="#/" class={current.page === "home" || current.page === "asset" ? "active" : ""}>
           Assets
         </a>
@@ -117,6 +125,10 @@ function App() {
       <main>
         {current.page === "asset" ? (
           <AssetPage key={current.id} id={current.id} />
+        ) : current.page === "scenes" ? (
+          <ScenesHome />
+        ) : current.page === "scene" ? (
+          <ScenePage key={current.id} id={current.id} />
         ) : current.page === "queue" ? (
           <QueuePage />
         ) : current.page === "models" ? (

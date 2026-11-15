@@ -607,3 +607,83 @@ main { flex: 1; }
 .library-card.chosen { outline: 2px solid var(--bad); outline-offset: 1px; }
 .library-card.locked { opacity: 0.45; cursor: not-allowed; }
 .library-tools .select-bar { margin-top: 2px; }
+
+/* ---------------------------------------------------------------- scene plans */
+.back-link { display: inline-block; color: var(--muted); text-decoration: none; font-size: 14px; margin-bottom: 8px; }
+.back-link:hover { color: var(--text); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scene-title { font-size: 28px; font-weight: 700; border: 1px solid transparent; background: transparent; padding: 2px 8px; margin-left: -9px; border-radius: 8px; min-width: 0; flex: 1; }
+.scene-title:hover, .scene-title:focus { border-color: var(--border); background: var(--surface); }
+.scene-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+.scene-col { display: grid; gap: 16px; min-width: 0; }
+@media (max-width: 900px) { .scene-grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 10px; min-width: 0; }
+.panel h2 { font-size: 17px; margin: 0; }
+.panel textarea, .panel input:not([type="checkbox"]):not([type="number"]) { width: 100%; }
+.panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.panel-head p { margin: 4px 0 0; max-width: 640px; }
+
+.loop-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: none; }
+.loop-beat { display: flex; align-items: center; gap: 8px; }
+.loop-beat input { flex: 1; min-width: 0; }
+.loop-num { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.loop-tools { display: flex; flex: none; }
+.loop-tools .icon-button { padding: 4px 7px; font-size: 11px; line-height: 1; }
+.loop-tools .icon-button:disabled { opacity: 0.3; cursor: default; }
+
+.concept-board.drop-over { border-color: var(--accent); background: var(--accent-soft); }
+.concept-empty { display: grid; gap: 4px; place-items: center; text-align: center; padding: 36px 16px; border: 2px dashed var(--border); border-radius: 10px; }
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.concept { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.concept-image { position: relative; aspect-ratio: 4 / 3; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; background: var(--surface-2); padding: 0; cursor: zoom-in; }
+.concept-image img { object-fit: cover; }
+.concept-index { position: absolute; top: 6px; left: 6px; background: var(--surface); color: var(--text); font-size: 12px; font-weight: 700; border-radius: 99px; padding: 1px 8px; box-shadow: var(--shadow); }
+.concept figcaption { display: flex; gap: 4px; align-items: center; }
+.concept figcaption input { flex: 1; min-width: 0; font-size: 13px; }
+.concept-large { display: block; max-width: 100%; max-height: 75vh; margin: 0 auto; border-radius: 8px; }
+
+.suggest-progress { display: grid; gap: 6px; }
+.plan-rows { display: grid; gap: 10px; }
+.plan-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 220px; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.plan-row.made { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); }
+.plan-concept { display: grid; gap: 6px; align-content: start; }
+.plan-concept .thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.plan-concept .thumb img { object-fit: cover; }
+.plan-concept select { width: 100%; font-size: 12.5px; }
+.plan-fields { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.plan-fields input, .plan-fields textarea { width: 100%; }
+.plan-line { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.plan-line .plan-name { flex: 1; min-width: 0; font-weight: 600; }
+.plan-count { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 14px; }
+.plan-count input { width: 58px; }
+.plan-status { display: grid; gap: 8px; align-content: start; }
+.plan-status select { width: 100%; font-size: 13px; }
+.plan-made { display: flex; gap: 10px; align-items: center; text-decoration: none; color: var(--text); padding: 6px; border-radius: 9px; background: var(--good-soft); }
+.plan-made > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.plan-made .thumb { width: 56px; height: 56px; flex: none; border-radius: 8px; overflow: hidden; background: var(--surface); }
+.plan-made .card-placeholder { font-size: 22px; }
+@media (max-width: 760px) {
+  .plan-row { grid-template-columns: 84px minmax(0, 1fr); }
+  .plan-status { grid-column: 1 / -1; }
+}
+
+.suggest-list { display: grid; gap: 8px; max-height: 60vh; overflow: auto; }
+.suggest-item { display: grid; grid-template-columns: auto 64px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.suggest-item.on { border-color: var(--accent); background: var(--accent-soft); }
+.suggest-item input { margin-top: 4px; }
+.suggest-item .thumb { width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.suggest-item .thumb img { object-fit: cover; }
+.suggest-text { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-width: 0; }
+.suggest-text .small { flex-basis: 100%; }
+
+/* real size on the Send to Godot card */
+.real-size { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 8px; margin: 8px 0; display: grid; gap: 6px; min-width: 0; }
+.real-size legend { font-size: 13px; font-weight: 600; color: var(--muted); padding: 0 4px; }
+.real-size-row { display: grid; grid-template-columns: repeat(3, minmax(64px, 90px)) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: end; }
+@media (max-width: 760px) { .real-size-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.real-size-row select { width: 100%; }
+.sized-line { display: grid; gap: 2px; margin-top: 2px; }
+.sized-warn { color: var(--warn); }
+.plan-size { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; }
+.plan-size input { width: 56px; }
+.size-note { margin: 0; }

@@ -6,6 +6,7 @@ import { api, type Asset } from "../api/client";
 import { putAsset } from "../state/store";
 import { ParamsForm, type Texts } from "../components/ParamsForm";
 import type { GameAsset } from "./api";
+import { RealSizeFields } from "./GodotCard";
 import { Picker } from "./Picker";
 import { Thumb } from "./Preview";
 import {
@@ -41,6 +42,7 @@ import {
   rigPose,
   rigReady,
   inputsNow,
+  sizePrompt,
   paramsFor,
   PENDING,
   picked,
@@ -498,6 +500,12 @@ function ConceptPrompt({ doc }: { doc: GameAsset }) {
           onBlur={save}
         />
       </label>
+      <RealSizeFields doc={doc} />
+      {sizePrompt(doc) && (
+        <p class="muted small size-note">
+          Added to the end of the concept prompt every time (the description writer cannot drop it): <i>{sizePrompt(doc)}</i>
+        </p>
+      )}
       <ReferencePicture doc={doc} />
       {(doc.kind === "character" || doc.kind === "creature") && (
         <label class="check rig-ready" title={rigPose(doc.kind).trim()}>

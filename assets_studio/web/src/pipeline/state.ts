@@ -20,8 +20,10 @@ import {
   paramsFor,
   PENDING,
   picked,
+  sizePrompt,
   sources,
   stepJobs,
+  withoutSize,
   STEPS,
   type StepDef,
   type World,
@@ -216,6 +218,9 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>, ex
         ? referencePrompt(world.doc.prompt || world.doc.idea, rigView)
         : posePrompt(rigView);
   }
+  // the real size goes on after the description writer, so it cannot be dropped
+  const size = step.id === "concept" ? sizePrompt(world.doc) : "";
+  if (size && typeof body.prompt === "string") body.prompt = `${withoutSize(body.prompt).replace(/\.?$/, ".")} ${size}`.trim();
   if (step.id === "concept" && rigReady(world.doc) && body.prompt) {
     body.prompt = body.prompt.trim().replace(/\.?$/, ".") + rigPose(world.doc.kind);
   }
@@ -380,10 +385,12 @@ export const WRITER = "asset-prompt-agent";
 export async function writePrompt(doc: GameAsset): Promise<Job> {
   const idea = (doc.idea || doc.prompt).trim();
   if (!idea) throw new Error("Type a short idea first, e.g. “rusty wheelbarrow”.");
+  // the writer also gets the size so its description agrees with it (the size itself is added to the concept prompt)
+  const size = sizePrompt(doc);
   const job = await api.createJob({
     server: WRITER,
     task: "asset-prompt",
-    prompt: idea,
+    prompt: size ? `${withoutSize(idea).replace(/\.?$/, ".")} ${size}` : idea,
     count: 1,
     params: { purpose: kindPurpose(doc.kind) },
     inputs: {},
