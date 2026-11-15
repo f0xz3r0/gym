@@ -240,6 +240,12 @@ function Loaded({ doc }: { doc: GameAsset }) {
                 <a class="button small ghost" href={`#/library/${shownAsset.id}`} target="_blank" rel="noreferrer">
                   Open in library ↗
                 </a>
+                {shownStep.id === "animrig" && typeof shownMeta.creature_folder === "string" && (
+                  <a class="button small" href={`#/rig/${encodeURIComponent(doc.id)}/${encodeURIComponent(shownMeta.creature_folder)}`}
+                    title="Move the rig's joints by hand, then rebuild the rig">
+                    Edit joints
+                  </a>
+                )}
               </div>
             </div>
           )}

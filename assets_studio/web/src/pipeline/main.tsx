@@ -13,6 +13,7 @@ import { ModelsPage, QueuePage } from "./Pages";
 import { LibraryPage } from "./Library";
 import { BlenderBuilderPage } from "../pages/BlenderBuilderPage";
 import { FramesPage } from "./Frames";
+import { JointEditor } from "./JointEditor";
 import { PerfSummary, PerformanceColumn, usePerformancePolling } from "./Performance";
 import { ScenePage, ScenesHome } from "./ScenePlans";
 import { act, loadDocs, toasts } from "./state";
@@ -21,6 +22,7 @@ import { Dot } from "./ui";
 type Route =
   | { page: "home" }
   | { page: "asset"; id: string }
+  | { page: "rig"; id: string; folder: string }
   | { page: "scenes" }
   | { page: "scene"; id: string }
   | { page: "queue" }
@@ -30,7 +32,8 @@ type Route =
   | { page: "frames" };
 
 function parse(hash: string): Route {
-  const [page, id] = hash.replace(/^#\/?/, "").split("/");
+  const [page, id, extra] = hash.replace(/^#\/?/, "").split("/");
+  if (page === "rig" && id && extra) return { page: "rig", id: decodeURIComponent(id), folder: decodeURIComponent(extra) };
   if (page === "a" && id) return { page: "asset", id: decodeURIComponent(id) };
   if (page === "s" && id) return { page: "scene", id: decodeURIComponent(id) };
   if (page === "scenes") return { page: "scenes" };
@@ -70,7 +73,7 @@ function TopBar() {
         <a href="#/scenes" class={current.page === "scenes" || current.page === "scene" ? "active" : ""}>
           Scenes
         </a>
-        <a href="#/" class={current.page === "home" || current.page === "asset" ? "active" : ""}>
+        <a href="#/" class={current.page === "home" || current.page === "asset" || current.page === "rig" ? "active" : ""}>
           Assets
         </a>
         <a href="#/library" class={current.page === "library" ? "active" : ""}>
@@ -130,6 +133,8 @@ function App() {
       <main>
         {current.page === "asset" ? (
           <AssetPage key={current.id} id={current.id} />
+        ) : current.page === "rig" ? (
+          <JointEditor key={current.folder} docId={current.id} folder={current.folder} />
         ) : current.page === "scenes" ? (
           <ScenesHome />
         ) : current.page === "scene" ? (
