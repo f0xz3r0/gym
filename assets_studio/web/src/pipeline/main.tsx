@@ -13,6 +13,7 @@ import { ModelsPage, QueuePage } from "./Pages";
 import { LibraryPage } from "./Library";
 import { BlenderBuilderPage } from "../pages/BlenderBuilderPage";
 import { FramesPage } from "./Frames";
+import { PerfSummary, PerformanceColumn, usePerformancePolling } from "./Performance";
 import { ScenePage, ScenesHome } from "./ScenePlans";
 import { act, loadDocs, toasts } from "./state";
 import { Dot } from "./ui";
@@ -82,6 +83,7 @@ function TopBar() {
           <Dot state={overallState()} /> Models
         </a>
       </nav>
+      <PerfSummary />
       <span class="spacer" />
       <a class="ghost-link" href="#/frames" title="Save any frame of a video as an image">
         Video frames
@@ -108,6 +110,7 @@ function Toasts() {
 }
 
 function App() {
+  usePerformancePolling();
   useEffect(() => {
     void act(loadDocs);
     // Another window may have changed documents: refresh when coming back.
@@ -122,6 +125,8 @@ function App() {
       {!connected.value && (
         <div class="offline">Lost connection to the studio. Is it running? Retrying…</div>
       )}
+      <div class="shell-body">
+      <PerformanceColumn />
       <main>
         {current.page === "asset" ? (
           <AssetPage key={current.id} id={current.id} />
@@ -145,6 +150,7 @@ function App() {
           <Home />
         )}
       </main>
+      </div>
       <Toasts />
     </div>
   );

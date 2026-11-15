@@ -687,3 +687,82 @@ main { flex: 1; }
 .plan-size { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; }
 .plan-size input { width: 56px; }
 .size-note { margin: 0; }
+
+/* ---------- Performance column (Performance.tsx): left of every page, hidden -> summary in the top bar */
+.shell-body { flex: 1; display: flex; align-items: flex-start; min-width: 0; }
+.shell-body > main { flex: 1; min-width: 0; }
+.perf {
+  position: sticky; top: 56px; flex: none; width: 272px; height: calc(100vh - 56px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 18px;
+  background: var(--surface); border-right: 1px solid var(--border); font-size: 13.5px;
+}
+.perf-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: -4px; }
+.perf-title { font-weight: 650; font-size: 14px; }
+.perf-head .icon-button { font-size: 18px; line-height: 1; padding: 2px 8px; }
+.perf-icon { font-weight: 800; flex: none; width: 1.1em; text-align: center; }
+.perf-verdict { display: flex; gap: 6px; align-items: flex-start; padding: 8px 10px; border-radius: 9px; font-weight: 550; line-height: 1.35; }
+.perf-verdict.is-good, .perf-verdict.is-ok { background: var(--good-soft); color: var(--good); }
+.perf-verdict.is-warn { background: var(--warn-soft); color: var(--warn); }
+.perf-verdict.is-bad { background: var(--bad-soft); color: var(--bad); }
+.perf-verdict.is-busy { background: var(--accent-soft); color: var(--accent); }
+.perf-verdict span:last-child { color: var(--text); }
+.perf-tile { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+.perf-label { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.perf-value { font-variant-numeric: tabular-nums; }
+.perf-value b { font-size: 16px; font-weight: 650; }
+.perf-note { font-size: 12px; line-height: 1.35; }
+.perf-facts { display: flex; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.perf-facts b { font-weight: 650; }
+.perf-meter { position: relative; display: block; height: 8px; border-radius: 99px; overflow: visible;
+  --tone: var(--accent); background: color-mix(in srgb, var(--tone) 18%, var(--surface-2)); }
+.perf-meter.is-good { --tone: var(--good); }
+.perf-meter.is-warn { --tone: var(--warn); }
+.perf-meter.is-bad { --tone: var(--bad); }
+.perf-meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--tone); transition: width 0.6s ease; }
+.perf-meter-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
+.perf-spark { display: flex; flex-direction: column; gap: 1px; }
+.perf-spark svg { display: block; width: 100%; height: 34px; overflow: visible; cursor: crosshair; touch-action: none; }
+.perf-spark-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.perf-spark-guard { stroke: var(--bad); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.perf-spark-cross { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.perf-spark-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.perf-spark-caption { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.4em; }
+.perf-spark-caption b { color: var(--text); font-weight: 600; }
+.perf-cpu { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.perf-cpu-value { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 3ch; text-align: right; }
+.perf-procs { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; table-layout: fixed; }
+.perf-procs th { font-size: 11.5px; color: var(--muted); font-weight: 600; text-align: right; padding: 2px 0 4px; }
+.perf-procs th:first-child { text-align: left; }
+.perf-procs th:nth-child(2), .perf-procs th:nth-child(3) { width: 52px; }
+.perf-procs td { padding: 3px 0; text-align: right; vertical-align: top; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.perf-procs td:first-child { text-align: left; min-width: 0; }
+.perf-proc-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.perf-proc-vram { display: block; font-size: 11.5px; color: var(--muted); }
+.perf-studio-mark { color: var(--accent); margin-right: 4px; font-size: 11px; }
+.perf-procs tr.is-studio .perf-proc-name { font-weight: 600; }
+.perf-foot { font-size: 11.5px; margin-top: 2px; }
+.perf-summary {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 12px; border-radius: 99px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted); font: inherit; font-size: 13px;
+  font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap;
+}
+.perf-summary:hover { border-color: var(--muted); color: var(--text); }
+.perf-summary b { color: var(--text); font-weight: 650; }
+.perf-summary.is-good .perf-icon, .perf-summary.is-ok .perf-icon { color: var(--good); }
+.perf-summary.is-warn .perf-icon { color: var(--warn); }
+.perf-summary.is-bad { border-color: var(--bad); }
+.perf-summary.is-bad .perf-icon { color: var(--bad); }
+.perf-summary.is-busy .perf-icon { color: var(--accent); }
+@media (max-width: 1180px) { .perf-summary-more { display: none; } }
+@media (max-width: 900px) {
+  /* Narrow window: the column slides over the page instead of taking its width. */
+  .perf { position: fixed; left: 0; top: 56px; bottom: 0; height: auto; z-index: 30; width: min(300px, 88vw);
+    box-shadow: 8px 0 24px rgb(0 0 0 / 0.18); }
+}
+@media (max-width: 640px) {
+  /* Phone width: the summary is just the verdict icon and the free commit; the nav scrolls instead of widening the page. */
+  .perf-summary { padding: 0 9px; gap: 4px; font-size: 0; flex: none; }
+  .perf-summary b, .perf-summary .perf-icon { font-size: 13px; }
+  .topbar nav { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+}
+@media (prefers-reduced-motion: reduce) { .perf-meter-fill { transition: none; } }
