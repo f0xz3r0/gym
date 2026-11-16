@@ -16,7 +16,7 @@ import { assetName, bytes, isMotionAsset, time } from "../format";
 import { assetById, assets, attempt, jobs, putAsset, putAssets, succeededJobs } from "../state/store";
 import { facts, Preview, Thumb } from "./Preview";
 import { docs, toast } from "./state";
-import { deleteAssets, loadForProtection, protectedEverywhere } from "./cleanup";
+import { deleteAssets, describeOutcome, loadForProtection, protectedEverywhere } from "./cleanup";
 import { ConfirmButton } from "./ui";
 import { stepById } from "./steps";
 
@@ -177,10 +177,10 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
               <button class="button small ghost" disabled={deleting !== null} title="Choose assets to delete"
                 onClick={() => {
                   setDeleting("Checking what is in use…");
-                  void loadForProtection().finally(() => {
-                    setDeleting(null);
-                    setSelecting(true);
-                  });
+                  void loadForProtection()
+                    .then(() => setSelecting(true))
+                    .catch((error: unknown) => toast(error instanceof Error ? error.message : String(error), "error"))
+                    .finally(() => setDeleting(null));
                 }}>
                 {deleting ?? "Select…"}
               </button>
@@ -202,9 +202,8 @@ export function LibraryPage({ selectedId }: { selectedId: string | null }) {
                   if (!chosen.size || deleting) return;
                   setDeleting("Deleting…");
                   void deleteAssets(chosenList, (done, total) => setDeleting(`Deleting ${done}/${total}…`))
-                    .then(({ deleted, skipped }) =>
-                      toast(`Deleted ${deleted}${skipped ? `; ${skipped} in use were kept` : ""}.`, "good"))
-                    .catch((error) => toast(String(error), "error"))
+                    .then((outcome) => toast(describeOutcome(outcome, "assets"), outcome.failed.length ? "error" : "good"))
+                    .catch((error) => toast(error instanceof Error ? error.message : String(error), "error"))
                     .finally(() => {
                       setDeleting(null);
                       setChosen(new Set());

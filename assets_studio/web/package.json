@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "api-types": "openapi-typescript ../build/openapi.json -o src/api/schema.ts",
-    "e2e": "node e2e/smoke.mjs"
+    "e2e": "node e2e/smoke.mjs",
+    "test": "node tests/run.mjs"
   },
   "dependencies": {
     "@google/model-viewer": "4.3.1",

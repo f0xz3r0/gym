@@ -449,11 +449,19 @@ export function results(world: World, step: StepDef): Result[] {
   return [...made, ...added].sort((a, b) => (a.asset.id < b.asset.id ? 1 : -1));
 }
 
-/** The result that feeds the next step: the one picked, else the newest. */
+/** The result that feeds the next step: the one picked, else the newest. When a pick is stored but not loaded yet,
+ * nothing (not the newest: that would feed, and protect, the wrong result). The newest stands in only when the pick
+ * is known to be gone (deleted) or known not to be a result of this step (every job of the step is loaded). */
 export function picked(world: World, step: StepDef): Result | undefined {
   const list = results(world, step);
-  const pick = stepState(world.doc, step.id).pick;
-  return list.find((item) => item.asset.id === pick) ?? list[0];
+  const state = stepState(world.doc, step.id);
+  const pick = state.pick;
+  if (!pick) return list[0];
+  const found = list.find((item) => item.asset.id === pick);
+  if (found) return found;
+  const asset = world.asset(pick);
+  const jobsLoaded = (state.jobs ?? []).every((id) => world.jobs.has(id));
+  return asset && (asset.deleted_at || jobsLoaded) ? list[0] : undefined;
 }
 
 /** Which earlier step feeds each input role (included steps only). */

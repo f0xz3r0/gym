@@ -53,7 +53,7 @@ import {
   type StepDef,
 } from "./steps";
 import { ConfirmButton, Dot, JobProgress, RunningChip, StatusChip } from "./ui";
-import { deleteResults, megabytes, protectedIds } from "./cleanup";
+import { deleteResults, describeOutcome, megabytes, protectedFor } from "./cleanup";
 
 /** Descriptions typed but maybe not saved yet, by game asset. */
 const promptDrafts = new Map<string, string>();
@@ -93,7 +93,7 @@ export function StepCard({
   const [selecting, setSelecting] = useState(false);
   const [chosenIds, setChosenIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const locked = protectedIds(world);
+  const locked = protectedFor(world);   // also what other game assets and scene plans use (finding 18)
 
   if (state === "off")
     return (
@@ -226,8 +226,8 @@ export function StepCard({
               setDeleting(true);
               void act(async () => {
                 const items = list.filter((r) => chosenIds.has(r.asset.id)).map((r) => ({ step, asset: r.asset }));
-                const { deleted } = await deleteResults(doc, items);
-                toast(`Deleted ${deleted} result${deleted === 1 ? "" : "s"} from ${step.title}.`, "good");
+                const outcome = await deleteResults(doc, items);
+                toast(describeOutcome(outcome, `from ${step.title}`), outcome.failed.length ? "error" : "good");
               }).finally(() => {
                 setDeleting(false);
                 setChosenIds(new Set());

@@ -2,7 +2,7 @@
 import { useState } from "preact/hooks";
 
 import type { GameAsset } from "./api";
-import { deleteResults, megabytes, removable } from "./cleanup";
+import { deleteResults, describeOutcome, megabytes, removable } from "./cleanup";
 import { act, toast, worldOf } from "./state";
 import { STEPS } from "./steps";
 import { ConfirmButton, Modal } from "./ui";
@@ -58,8 +58,8 @@ export function CleanupDialog({ doc, onClose }: { doc: GameAsset; onClose: () =>
                 if (busy) return;
                 setBusy("Deleting…");
                 void act(async () => {
-                  const { deleted } = await deleteResults(doc, chosen, (done, total) => setBusy(`Deleting ${done}/${total}…`));
-                  toast(`Cleaned up: ${deleted} results deleted.`, "good");
+                  const outcome = await deleteResults(doc, chosen, (done, total) => setBusy(`Deleting ${done}/${total}…`));
+                  toast(describeOutcome(outcome), outcome.failed.length ? "error" : "good");
                   onClose();
                 }).finally(() => setBusy(null));
               }}
