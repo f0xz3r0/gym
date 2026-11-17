@@ -85,7 +85,8 @@ await page.locator("#step-godot").screenshot({ path: join(screens, "07-godot.png
 const options = await page.locator("#step-godot select option").allTextContents();
 check(options.length >= 3, `Godot projects listed (${options.length})`);
 
-await page.locator("#step-detail button", { hasText: "Skip" }).waitFor();
+// The optional Extra detail step shows "Skip" when it is on and "Include this step" when it is off (B22).
+await page.locator("#step-detail button", { hasText: /^(Skip|Include this step)$/ }).waitFor();
 await page.locator("#step-paint button", { hasText: "Use my own" }).count().then((n) => check(n === 0, "paint step offers no upload"));
 
 await page.goto(`${base}/#/queue`);
