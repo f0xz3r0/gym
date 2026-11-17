@@ -119,6 +119,7 @@ export function sectionOfJob(job: Job): string | undefined {
       "3d-refine",
       "3d-retopo",
       "3d-bake-normals",
+      "3d-rebake",
     ].includes(job.task)
   )
     return "mesh";

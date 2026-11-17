@@ -16,6 +16,7 @@ const SCENE: Record<string, Scene> = {
   cleanup: "mesh",
   gamemesh: "mesh",
   paint: "paint",
+  rebake: "paint",
   repair: "paint",
   normals: "paint",
   rig: "rig",

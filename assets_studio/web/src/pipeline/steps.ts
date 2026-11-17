@@ -12,6 +12,7 @@ export type StepId =
   | "cleanup"
   | "gamemesh"
   | "paint"
+  | "rebake"
   | "repair"
   | "normals"
   | "rig"
@@ -50,7 +51,14 @@ export interface StepDef {
 
 const always = () => true;
 const never = () => false;
-const MESH_CHAIN: StepId[] = ["normals", "repair", "paint", "gamemesh", "cleanup", "detail", "shape"];
+const MESH_CHAIN: StepId[] = ["normals", "repair", "rebake", "paint", "gamemesh", "cleanup", "detail", "shape"];
+/** Asset class for the Rebake step's texture cap (plan/STANDARDS.md section 1), until assets carry their own (2c). */
+const ASSET_CLASS: Record<Kind, string> = {
+  prop: "small prop",
+  mechanical: "hero prop or vehicle",
+  character: "character or creature",
+  creature: "character or creature",
+};
 
 export const STEPS: StepDef[] = [
   {
@@ -143,6 +151,21 @@ export const STEPS: StepDef[] = [
     heavy: true,
   },
   {
+    id: "rebake",
+    title: "Clean UVs (rebake)",
+    blurb:
+      "Lays out a clean UV map on the game mesh (fewer, larger islands with a margin) and bakes the painted " +
+      "textures onto it, so seams do not bleed or turn dark at a distance.",
+    task: "3d-rebake",
+    servers: ["game-mesh"],
+    optional: true,
+    defaultOn: never,
+    produces: "mesh",
+    from: { mesh: ["gamemesh", "cleanup", "detail", "shape"], painted: ["paint"] },
+    paramsFrom: (doc) => ({ asset_class: ASSET_CLASS[doc.kind] }),
+    typical: "about 30 s (a 4096 texture: about 1 min)",
+  },
+  {
     id: "repair",
     title: "Repair texture",
     blurb:
@@ -155,7 +178,7 @@ export const STEPS: StepDef[] = [
     defaultOn: never,
     produces: "mesh",
     // high: the detailed mesh, for Painter's baking (Blender ignores it)
-    from: { mesh: ["paint"], high: ["cleanup", "detail", "shape"] },
+    from: { mesh: ["rebake", "paint"], high: ["cleanup", "detail", "shape"] },
     typical: "as long as you work in it (Blender opens in about 20 s, Painter in about a minute)",
     heavy: true,
   },
@@ -168,7 +191,7 @@ export const STEPS: StepDef[] = [
     optional: true,
     defaultOn: never,
     produces: "mesh",
-    from: { high: ["cleanup", "detail", "shape"], low: ["repair", "paint"] },
+    from: { high: ["cleanup", "detail", "shape"], low: ["repair", "rebake", "paint"] },
     typical: "about 10 s",
   },
   {
@@ -211,7 +234,7 @@ export const STEPS: StepDef[] = [
     optional: true,
     defaultOn: (kind) => kind === "creature" || kind === "character",
     produces: "mesh",
-    from: { mesh: ["normals", "repair", "paint", "gamemesh", "cleanup", "detail", "shape"] },
+    from: { mesh: ["normals", "repair", "rebake", "paint", "gamemesh", "cleanup", "detail", "shape"] },
     paramsFrom: (doc) => ({ creature: doc.name }),
     typical: "about 3 min",
     heavy: true,
