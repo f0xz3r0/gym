@@ -78,10 +78,23 @@ class Params(BaseModel):
             primary=True,
         ),
     )
-    view_size: Literal[512, 768] = Field(
+    view_size: Literal[512, 768, 1024] = Field(
         default=512,
-        description="Size of each drawn view, pixels (768: finer, much more memory)",
+        description="Size of each drawn view, pixels (768: finer, much more memory; 1024: beyond the"
+        " model's 512 training size, measured in the Studio's prompt 2b)",
         json_schema_extra=ui(ru="Размер каждого вида, пикселей (768 — детальнее и тяжелее)"),
+    )
+    reference: Literal["512", "view", "upscaled"] = Field(
+        default="512",
+        description=(
+            "How the image reaches the model: 512 (upstream: shrunk to 512, then resized to the"
+            " view size), view (resized straight to the view size), upscaled (RealESRGAN x4 first,"
+            " then to the view size)"
+        ),
+        json_schema_extra=ui(
+            ru="Как картинка попадает в модель: 512 (как в оригинале), view (сразу в размер вида),"
+            " upscaled (сначала RealESRGAN x4)"
+        ),
     )
     texture_size: Literal[2048, 4096] = Field(
         default=2048,

@@ -142,7 +142,8 @@ export const STEPS: StepDef[] = [
     title: "Paint textures",
     blurb: "Paints colour and material textures onto the mesh, matching the concept image.",
     task: "3d-paint",
-    servers: ["hunyuan-paint21", "trellis2-paint"],
+    // UltraTex (prompt 2b): far sharper, 2-8 min, non-commercial model; an option, Hunyuan-Paint stays the default
+    servers: ["hunyuan-paint21", "trellis2-paint", "ultratex"],
     optional: false,
     defaultOn: always,
     produces: "mesh",
@@ -159,7 +160,8 @@ export const STEPS: StepDef[] = [
     task: "3d-rebake",
     servers: ["game-mesh"],
     optional: true,
-    defaultOn: never,
+    // on by default (owner, 2026-11-17, prompt 2b); still switchable per asset
+    defaultOn: always,
     produces: "mesh",
     from: { mesh: ["gamemesh", "cleanup", "detail", "shape"], painted: ["paint"] },
     paramsFrom: (doc) => ({ asset_class: ASSET_CLASS[doc.kind] }),

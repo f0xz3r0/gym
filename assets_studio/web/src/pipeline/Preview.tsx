@@ -145,6 +145,34 @@ function ModelView({ asset }: { asset: Asset }) {
  * the auto-rig's poses sheet (the rig bent in test poses: tearing or a limb dragging the body means bad weights). */
 export interface Finding { id: string; level: "info" | "warn" | "bad"; title: string; detail: string; fix: string | null; bones?: string[] }
 
+/** The texture check (tools/texture_check.py, prompt 2b): findings in plain words, worst first, each with what
+ * would help, and the measured numbers. Shown for painted results (meta.texture_check). */
+export function TextureCheck({ findings, numbers }: { findings: Finding[]; numbers?: Record<string, unknown> | undefined }) {
+  const order = { bad: 0, warn: 1, info: 2 } as const;
+  const sorted = [...findings].sort((a, b) => order[a.level] - order[b.level]);
+  const n = numbers ?? {};
+  const facts = [
+    typeof n.texture_size === "number" && `${n.texture_size} px`,
+    typeof n.texels_per_metre === "number" && `${Math.round(n.texels_per_metre)} texels/m`,
+    typeof n.islands === "number" && `${n.islands} islands`,
+    typeof n.uv_coverage === "number" && `${Math.round(n.uv_coverage * 100)} % used`,
+  ].filter(Boolean);
+  return (
+    <div class="motion-check texture-check">
+      {facts.length > 0 && <p class="muted small">{facts.join(" · ")}</p>}
+      <ul class="check-list">
+        {sorted.map((f) => (
+          <li key={f.id} class={`check-${f.level}`}>
+            <b>{f.level === "bad" ? "●" : f.level === "warn" ? "▲" : "✓"} {f.title}</b>
+            <span>{f.detail}</span>
+            {f.fix && f.level !== "info" && <em class="check-nofix">{f.fix}</em>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** What each Tune fix does (tools/v2r2.py TUNE). */
 const FIXES: Record<string, string> = {
   limit_twist: "Hold the roll still (twist up to 3°)",

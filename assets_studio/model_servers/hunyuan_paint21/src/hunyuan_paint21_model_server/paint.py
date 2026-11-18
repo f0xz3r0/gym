@@ -54,6 +54,16 @@ def prepare_image(data: bytes, remove_background: bool) -> Image.Image:
     return rgba
 
 
+def on_white(image: Image.Image) -> Image.Image:
+    """The image on white, as upstream composites it (the multiview model then resizes it to a square, as
+    upstream does with its 512 px copy)."""
+    if image.mode == "RGBA":
+        white = Image.new("RGB", image.size, (255, 255, 255))
+        white.paste(image, mask=image.getchannel("A"))
+        image = white
+    return image.convert("RGB")
+
+
 def on_gpu_while_called(module: Any) -> Any:
     """A module that sits in RAM and visits the GPU for each call."""
     import torch
@@ -103,6 +113,9 @@ def swap_models(pipeline_module: Any, multiview_module: Any) -> None:
     from omegaconf import OmegaConf
 
     class OffloadedMultiview(multiview_module.multiviewDiffusionNet):
+        # set by paint() for reference "view" / "upscaled": replaces upstream's 512 px copy of the image
+        reference: Any = None
+
         def __init__(self, config: Any) -> None:  # upstream's, from local weights, offloaded
             self.device = config.device
             self.cfg = OmegaConf.load(config.multiview_cfg_path)
@@ -130,6 +143,8 @@ def swap_models(pipeline_module: Any, multiview_module: Any) -> None:
         def __call__(self, *args: Any, **kwargs: Any) -> Any:
             """The views, then the pipeline out of the GPU: it is not needed
             again, and baking at twice the texture size needs the room."""
+            if OffloadedMultiview.reference is not None and args:
+                args = ([OffloadedMultiview.reference], *args[1:])
             try:
                 return super().__call__(*args, **kwargs)
             finally:
@@ -278,6 +293,15 @@ def paint(work: Path, params: Params) -> dict[str, Any]:
     config.dino_ckpt_path = str(dino_directory())
     config.realesrgan_ckpt_path = str(realesrgan_path())
     pipeline = textureGenPipeline.Hunyuan3DPaintPipeline(config)
+    reference_px = 512
+    if params.reference != "512":
+        # upstream shrinks the image to 512 x 512 and then resizes it to the view size (prompt 2b): give the model
+        # the full image instead (optionally upscaled first); the multiview model resizes it to the view size
+        reference = on_white(image)
+        if params.reference == "upscaled":
+            reference = pipeline.models["super_model"](reference)
+        reference_px = max(reference.size)
+        textureGenPipeline.multiviewDiffusionNet.reference = reference
     pipeline(
         mesh_path=str(mesh_path),
         image_path=image,
@@ -293,6 +317,9 @@ def paint(work: Path, params: Params) -> dict[str, Any]:
         "texture_size": painted.visual.material.baseColorTexture.size[0],
         "views": params.views,
         "view_size": params.view_size,
+        "reference": params.reference,
+        "reference_px": reference_px,
+        "image_px": max(image.size),
         "materials": "pbr (base colour, metallic, roughness)",
         "min_roughness": params.min_roughness,
         "max_metallic": params.max_metallic,

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { assetById } from "../state/store";
 import type { GameAsset } from "./api";
 import { GodotCard } from "./GodotCard";
-import { facts, MotionCheck, Preview, type Finding } from "./Preview";
+import { facts, MotionCheck, Preview, TextureCheck, type Finding } from "./Preview";
 import { StepCard, type Selection } from "./StepCard";
 import {
   act,
@@ -53,6 +53,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
   const [confirmRun, setConfirmRun] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const [checkTab, setCheckTab] = useState<"motion" | "texture">("motion");
   useEffect(() => ensureJobs(allJobIds(doc)), [doc.rev]);
 
   // The preview follows your clicks; until then it shows the newest finished step.
@@ -107,6 +108,17 @@ function Loaded({ doc }: { doc: GameAsset }) {
         tuned: Array.isArray(shownMeta.tune) ? (shownMeta.tune as string[]) : undefined,
       }
     : undefined;
+  // the texture check of a painted result (prompt 2b), a tab beside the motion check
+  const textureMeta = !working && Array.isArray(shownMeta.texture_check)
+    ? {
+        findings: shownMeta.texture_check as Finding[],
+        numbers: (shownMeta.texture_numbers ?? undefined) as Record<string, unknown> | undefined,
+      }
+    : undefined;
+  const tabs = [checkMeta && ("motion" as const), textureMeta && ("texture" as const)].filter(
+    (tab): tab is "motion" | "texture" => !!tab,
+  );
+  const tab = tabs.includes(checkTab) ? checkTab : tabs[0];
   const tuneHandler = shownJob && shownStep
     ? (fixes: string[]) =>
         act(async () => {
@@ -182,7 +194,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
       </nav>
 
       {cleaning && <CleanupDialog doc={doc} onClose={() => setCleaning(false)} />}
-      <div class={`asset-body${checkMeta ? " with-check" : ""}`}>
+      <div class={`asset-body${tab ? " with-check" : ""}`}>
         <div class="steps">
           {steps.map((step, index) => (
             <StepCard
@@ -250,19 +262,35 @@ function Loaded({ doc }: { doc: GameAsset }) {
             </div>
           )}
         </aside>
-        {checkMeta && (
-          <aside class="check-pane" aria-label="Motion check">
+        {tab && (
+          <aside class="check-pane" aria-label={tab === "motion" ? "Motion check" : "Texture check"}>
             <header class="check-head">
-              <b>Motion check</b>
+              {tabs.length > 1 ? (
+                <div class="check-tabs" role="tablist">
+                  {tabs.map((id) => (
+                    <button key={id} role="tab" aria-selected={tab === id}
+                      class={`button small ${tab === id ? "" : "ghost"}`} onClick={() => setCheckTab(id)}>
+                      {id === "motion" ? "Motion check" : "Texture check"}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <b>{tab === "motion" ? "Motion check" : "Texture check"}</b>
+              )}
               <span class="muted small">{shownStep?.title}</span>
             </header>
-            <MotionCheck
-              key={shownAsset?.id}
-              findings={checkMeta.findings}
-              sheet={checkMeta.sheet}
-              tuned={checkMeta.tuned}
-              onTune={tuneHandler}
-            />
+            {tab === "motion" && checkMeta && (
+              <MotionCheck
+                key={shownAsset?.id}
+                findings={checkMeta.findings}
+                sheet={checkMeta.sheet}
+                tuned={checkMeta.tuned}
+                onTune={tuneHandler}
+              />
+            )}
+            {tab === "texture" && textureMeta && (
+              <TextureCheck key={shownAsset?.id} findings={textureMeta.findings} numbers={textureMeta.numbers} />
+            )}
           </aside>
         )}
       </div>
