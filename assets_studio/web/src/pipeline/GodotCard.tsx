@@ -6,6 +6,7 @@ import { Thumb } from "./Preview";
 import { act, toast, update, worldOf } from "./state";
 import { picked, sendable, STEPS } from "./steps";
 import { Modal } from "./ui";
+import { AssetCheckPanel } from "./Profiles";
 
 const slug = (text: string) =>
   text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "asset";
@@ -74,8 +75,15 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
         };
       });
       const sized = record.real_size;
+      const shown = record.check?.findings ?? [];
+      const exported = record.export;
       toast(
         `Sent to ${record.project_name} as ${record.res_path}.` +
+          (exported?.glb_bytes_source && exported.glb_bytes_exported
+            ? ` ${(exported.glb_bytes_source / 1e6).toFixed(1)} -> ${(exported.glb_bytes_exported / 1e6).toFixed(1)} MB.`
+            : "") +
+          (exported?.collision && exported.collision.mode !== "none" ? ` Collision: ${exported.collision.mode}.` : "") +
+          (shown.length ? ` Check: ${shown.length} to look at (${shown.slice(0, 2).map((f) => f.title).join("; ")}).` : "") +
           (sized?.size ? ` Real size ${sized.size.map((v) => v.toFixed(2)).join(" × ")} m.` : "") +
           (sized?.squared ? " Ends squared." : "") +
           (record.demo_scene ? ` Demo: open ${record.demo_scene} and press F6 (walks on a checker floor).` : "") +
@@ -169,6 +177,9 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
             </label>
           </div>
           <RealSizeFields doc={doc} />
+          {final.result.asset.mime === "model/gltf-binary" && (
+            <AssetCheckPanel doc={doc} assetId={final.result.asset.id} fileName={fileName} />
+          )}
           <p class="muted small">
             Will be saved as <code>res://assets/{slug(folder)}/{slug(fileName)}.{final.result.asset.mime === "model/x-fbx" ? "fbx" : "glb"}</code>
           </p>
@@ -190,7 +201,7 @@ export function GodotCard({ doc, number }: { doc: GameAsset; number: number }) {
                 {busy
                   ? doc.godot.square_ends
                     ? "Squaring the ends in Blender and sending (a few seconds)…"
-                    : "Sending…"
+                    : "Preparing in Blender (collision, pivot, textures) and sending…"
                   : sentThis
                     ? "Send again"
                     : "Send to Godot"}

@@ -26,6 +26,7 @@ import { finalResult, included, KINDS, PENDING, picked, results, status, stepByI
 import { ConfirmButton, Modal } from "./ui";
 import { WorkingPreview } from "./Working";
 import { CleanupDialog } from "./CleanupDialog";
+import { ClassProfileFields } from "./Profiles";
 
 export function AssetPage({ id }: { id: string }) {
   const doc = docs.value.get(id);
@@ -156,6 +157,7 @@ function Loaded({ doc }: { doc: GameAsset }) {
           <button class="button small ghost" onClick={() => setRenaming(true)}>
             Rename
           </button>
+          <ClassProfileFields doc={doc} />
         </div>
         <span class="spacer" />
         <button class="button small ghost" onClick={() => setCleaning(true)} title="Delete results you no longer need">

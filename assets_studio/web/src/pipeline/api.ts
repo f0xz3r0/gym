@@ -54,6 +54,43 @@ export interface GodotExportRecord {
   project_name: string;
   exported_at: string;
   asset: string;
+  /** prompt 2c: the asset check of the exported file (warn and bad findings only) */
+  check?: { summary?: Record<string, number>; findings: CheckFinding[] } | null;
+  export?: {
+    class?: string;
+    profile?: string;
+    collision?: { mode: string; nodes?: string[]; points?: number; triangles?: number } | null;
+    glb_bytes_source?: number;
+    glb_bytes_exported?: number;
+  };
+}
+
+export interface CheckFinding {
+  id: string;
+  level: "info" | "warn" | "bad";
+  title: string;
+  detail: string;
+  fix: string | null;
+}
+
+/** tools/asset_check.py: is the model ready for Godot against its class and profile (prompt 2c). */
+export interface AssetCheckResult {
+  findings: CheckFinding[];
+  numbers: Record<string, unknown>;
+  class?: string;
+  profile?: string;
+  class_guessed?: boolean;
+  summary?: Record<string, number>;
+  error?: string;
+  skipped?: string;
+}
+
+/** pipeline/profiles.json (prompt 2c) */
+export interface ProfileOptions {
+  classes: { id: string; title: string }[];
+  profiles: { id: string; title: string }[];
+  class_from_kind: Record<string, string>;
+  default_profile: string;
 }
 
 export interface GameAsset {
@@ -76,6 +113,9 @@ export interface GameAsset {
     /** cut the rounded tips off both width ends on export, so kit parts meet flush */
     square_ends?: boolean;
   };
+  /** pipeline/profiles.json class and style profile; "" = guessed from the kind / the default (prompt 2c) */
+  asset_class?: string;
+  profile?: string;
   created_at: string;
   updated_at: string;
 }
@@ -125,7 +165,12 @@ export const pipelineApi = {
       prompt: doc.prompt,
       steps: doc.steps,
       godot: doc.godot,
+      asset_class: doc.asset_class ?? "",
+      profile: doc.profile ?? "",
     }),
+  profiles: () => call<ProfileOptions>("GET", "/api/pipeline/profiles"),
+  checkForGodot: (body: { asset_id: string; pipeline_asset: string; file_name?: string }) =>
+    call<AssetCheckResult>("POST", "/api/godot/check", body),
   remove: (id: string) => call<{ deleted: boolean }>("DELETE", `/api/pipeline/assets/${id}`),
   godotProjects: () => call<GodotProject[]>("GET", "/api/godot/projects"),
   addGodotProject: (path: string) => call<GodotProject>("POST", "/api/godot/projects", { path }),
