@@ -127,14 +127,18 @@ export const STEPS: StepDef[] = [
   {
     id: "gamemesh",
     title: "Game-ready mesh",
-    blurb: "Rebuilds clean, even geometry (QuadriFlow, ~40k triangles) that games handle well.",
+    blurb:
+      "Rebuilds the mesh for games by its class: quads that bend for characters and creatures, a decimated mesh " +
+      "within the triangle budget for props and kit parts (pipeline/profiles.json).",
     task: "3d-retopo",
     servers: ["game-mesh"],
     optional: true,
     defaultOn: always,
     produces: "mesh",
     from: { mesh: ["cleanup", "detail", "shape"] },
-    params: { method: "quadriflow", faces: 20000 },
+    // prompt 2d: method "class" and faces 0 take the class default (best-quads or decimate to the budget)
+    params: { method: "class", faces: 0 },
+    paramsFrom: (doc) => ({ asset_class: doc.asset_class || "", profile: doc.profile || "", kind: doc.kind }),
     typical: "about 30 s",
   },
   {
@@ -407,6 +411,38 @@ export function sizePrompt(doc: GameAsset): string {
 /** A prompt with any earlier "Real size: ..." sentences taken out (decimals such as 1.2 do not end a sentence). */
 export const withoutSize = (text: string) =>
   text.replace(/Real size:.*?\.(?=\s|$)\s*(?:It is .*?\.(?=\s|$)\s*)*(?:Draw it with exactly these proportions.*?\.(?=\s|$)\s*)?/g, "").trim();
+
+/** The 3D style lock of the asset's profile (pipeline/style-lock/<profile>.json via tools/style_lock.py, B37). */
+export interface StyleLock {
+  profile: string;
+  /** suffix and palette words, added after the writer's description and the size sentence */
+  prompt: string;
+  /** added to the image model's negative prompt where the model takes one */
+  negative: string;
+  /** chosen reference concepts (asset ids); no concept model takes style references yet */
+  references: string[];
+}
+
+/** The short subject sentence that leads a concept prompt: "A single fence panel." (B46). */
+export const subjectSentence = (name: string) => (name.trim() ? `A single ${name.trim().toLowerCase()}.` : "");
+
+/** A concept prompt as subject, style lock, description (once each, however often it is re-run). SDXL reads a long
+ * prompt in 77-token chunks and weighs the first most (B46): the lock last came out photographic, the lock first lost
+ * the object (planks filling the frame), so a short subject sentence goes before the lock. */
+export function withStyleLock(prompt: string, lock?: StyleLock, subject = ""): string {
+  if (!lock?.prompt || !prompt.trim()) return prompt;
+  let base = prompt.split(lock.prompt).join("").trim();
+  if (subject && base.startsWith(subject)) base = base.slice(subject.length).trim();
+  return [subject, lock.prompt, base].filter(Boolean).join(" ");
+}
+
+/** A negative prompt with the style lock's terms added, each term once. */
+export function negativeWithLock(negative: string, lock?: StyleLock): string {
+  if (!lock?.negative) return negative;
+  const terms = [...negative.split(","), ...lock.negative.split(",")].map((term) => term.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  return terms.filter((term) => !seen.has(term.toLowerCase()) && seen.add(term.toLowerCase())).join(", ");
+}
 
 /** The concept step's reference picture (asset id), if one is set. */
 export function conceptReference(doc: GameAsset): string | undefined {

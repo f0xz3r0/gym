@@ -26,7 +26,11 @@ import {
   withoutSize,
   STEPS,
   type StepDef,
+  type StyleLock,
   type World,
+  negativeWithLock,
+  subjectSentence,
+  withStyleLock,
 } from "./steps";
 
 // ------------------------------------------------------------------ documents
@@ -192,7 +196,26 @@ export const setReference = (doc: GameAsset, asset: string | null) =>
     if (asset && (state.referenceMode ?? "pose") === "as-is") useReferenceAsIs(next, asset);
   });
 
-function jobBody(world: World, step: StepDef, inputs: Record<string, string>, extra: Record<string, unknown> = {}): JobCreate {
+/** The style lock of the asset's profile (default profile when none is chosen); undefined if the list cannot load. */
+let profileOptions: ReturnType<typeof pipelineApi.profiles> | undefined;
+export async function styleLockOf(doc: GameAsset): Promise<StyleLock | undefined> {
+  try {
+    profileOptions ??= pipelineApi.profiles();
+    const options = await profileOptions;
+    return options.style_locks?.[doc.profile || options.default_profile];
+  } catch {
+    profileOptions = undefined;
+    return undefined;
+  }
+}
+
+function jobBody(
+  world: World,
+  step: StepDef,
+  inputs: Record<string, string>,
+  extra: Record<string, unknown> = {},
+  lock?: StyleLock,
+): JobCreate {
   const choice = chosen(world, step);
   if (!choice) throw new Error(`No model is set up for “${step.title}”.`);
   const body: JobCreate = {
@@ -224,6 +247,12 @@ function jobBody(world: World, step: StepDef, inputs: Record<string, string>, ex
   if (step.id === "concept" && rigReady(world.doc) && body.prompt) {
     body.prompt = body.prompt.trim().replace(/\.?$/, ".") + rigPose(world.doc.kind);
   }
+  // the 3D style lock of the asset's profile (B37), put first (B46): suffix and palette, and the negative where taken
+  if (step.id === "concept" && lock) {
+    if (typeof body.prompt === "string") body.prompt = withStyleLock(body.prompt, lock, subjectSentence(world.doc.name));
+    const negative = body.params?.negative_prompt;
+    if (typeof negative === "string") body.params = { ...body.params, negative_prompt: negativeWithLock(negative, lock) };
+  }
   return body;
 }
 
@@ -252,7 +281,7 @@ export async function runStep(
   }
   // a re-run of one result (the Tune panel) uses that result's own inputs, whatever is picked now
   if (inputsOverride) inputs = { ...inputs, ...inputsOverride };
-  const body = jobBody(world, step, inputs, extra);
+  const body = jobBody(world, step, inputs, extra, step.id === "concept" ? await styleLockOf(doc) : undefined);
   const max = chosen(world, step)?.task.max_count ?? 1;
   const created: Job[] = [];
   if (variations > 1 && max >= variations) created.push(await api.createJob({ ...body, count: variations }));
@@ -324,7 +353,8 @@ export async function runRemaining(doc: GameAsset, status?: (text: string) => vo
     }
     const picked_ = step.userInput ? stepOf(doc, step.id).reference : null;
     if (step.userInput && picked_) inputs[step.userInput.role] = picked_;
-    const job = await api.createJob({ ...jobBody(world, step, inputs), dependencies });
+    const lock = step.id === "concept" ? await styleLockOf(doc) : undefined;
+    const job = await api.createJob({ ...jobBody(world, step, inputs, {}, lock), dependencies });
     mergeJob(job);
     scheduled.set(step.id, job);
   }

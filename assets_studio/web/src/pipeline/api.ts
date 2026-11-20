@@ -91,6 +91,8 @@ export interface ProfileOptions {
   profiles: { id: string; title: string }[];
   class_from_kind: Record<string, string>;
   default_profile: string;
+  /** each profile's 3D style lock for the concept step (B37, prompt 2d) */
+  style_locks?: Record<string, import("./steps").StyleLock>;
 }
 
 export interface GameAsset {

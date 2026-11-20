@@ -330,7 +330,8 @@ def autoremesher(obj: Any, faces: int, settings: dict) -> Any:
             forward_axis="NEGATIVE_Z",
             up_axis="Y",
         )
-        environment = {**os.environ, "QT_QPA_PLATFORM": "xcb"}
+        # The AppImage needs an X display; the Windows build has no xcb plugin and crashes with it (Studio 2d).
+        environment = {**os.environ, "QT_QPA_PLATFORM": "offscreen" if os.name == "nt" else "xcb"}
         done = subprocess.run(  # noqa: S603 -- configured binary, fixed argv, no shell
             [
                 str(binary),
