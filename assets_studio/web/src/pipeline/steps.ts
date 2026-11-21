@@ -15,6 +15,7 @@ export type StepId =
   | "rebake"
   | "repair"
   | "normals"
+  | "parts"
   | "rig"
   | "animrig"
   | "motionreader"
@@ -201,6 +202,22 @@ export const STEPS: StepDef[] = [
     typical: "about 10 s",
   },
   {
+    id: "parts",
+    title: "Split parts",
+    blurb:
+      "Splits the finished mesh into its parts (wheels, doors, lids, arms) with P3-SAM; each part becomes its own " +
+      "node in Godot with its pivot at its centre and its own collision, so a wheel can turn. Textures are kept.",
+    task: "3d-parts",
+    servers: ["parts"],
+    optional: true,
+    // owner, 2026-11-21 (B48): on for vehicles, an option for everything else
+    defaultOn: (kind) => kind === "mechanical",
+    produces: "mesh",
+    from: { mesh: MESH_CHAIN },
+    typical: "about 1 min",
+    heavy: true,
+  },
+  {
     id: "rig",
     title: "Skeleton (rig)",
     blurb:
@@ -326,7 +343,8 @@ export const STEPS: StepDef[] = [
 export const stepById = (id: string) => STEPS.find((step) => step.id === id);
 
 /** Final result candidates for Godot, nearest the end first. */
-export const FINAL_CHAIN: StepId[] = ["motion", "textmotion", "mocap", "animate", "rig", "animrig", ...MESH_CHAIN];
+// "parts" before the mesh chain: Send to Godot takes the split model; the rig steps keep the whole mesh (MESH_CHAIN).
+export const FINAL_CHAIN: StepId[] = ["motion", "textmotion", "mocap", "animate", "rig", "animrig", "parts", ...MESH_CHAIN];
 
 export const KINDS: { id: Kind; label: string; hint: string; purpose: string }[] = [
   { id: "prop", label: "Prop", hint: "Barrels, rocks, furniture", purpose: "Object reference" },
