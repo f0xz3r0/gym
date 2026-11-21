@@ -91,7 +91,7 @@ export const STEPS: StepDef[] = [
     title: "3D shape",
     blurb: "Builds the 3D shape from the cut-out picture (no colours yet).",
     task: "image-to-3d",
-    servers: ["trellis2-shape", "hunyuan3d21", "pixal3d", "triposg"],
+    servers: ["trellis2-shape", "hunyuan3d21", "pixal3d", "pixal3d-views", "triposg"],
     optional: false,
     defaultOn: always,
     produces: "mesh",
@@ -463,7 +463,12 @@ export function conceptAsIs(doc: GameAsset): boolean {
 
 /** A step as it runs now: with a reference picture the concept is an image
  * edit (Qwen-Image, picture + description) instead of text-to-image. */
+/** Shape servers only for characters and creatures: four views from a turnaround sheet (Phase 3 3b, owner 2026-11-21). */
+export const CHARACTER_ONLY_SERVERS = ["pixal3d-views"];
+
 export function effective(world: World, step: StepDef): StepDef {
+  if (step.id === "shape" && world.doc.kind !== "character" && world.doc.kind !== "creature")
+    return { ...step, servers: step.servers.filter((id) => !CHARACTER_ONLY_SERVERS.includes(id)) };
   if (step.id !== "concept" || !conceptReference(world.doc)) return step;
   return { ...step, task: "image-to-image", servers: ["qwen-image"] };
 }
